@@ -2,10 +2,16 @@
 
 # cloud-init seems to prevent vmware customization
 # see https://github.com/vmware/open-vm-tools/issues/421
+- name: check /etc/cloud directory
+  stat:
+    path: /etc/cloud
+  register: check_etc_cloud_dir
+
 - name: disable cloud-init
   file:
     path: /etc/cloud/cloud-init.disabled
     state: touch
+  when: check_etc_cloud_dir.stat.exists
 
 - name: Create /mnt/hgfs directory for synced folder mounts
   file:

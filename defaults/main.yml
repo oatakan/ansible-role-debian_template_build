@@ -1,0 +1,18 @@
+---
+from_vagrant: no
+target_ovirt: no
+enable_cloud_init: no
+
+local_account_username: ansible
+
+ovirt_guest_agent_service_name: qemu-guest-agent
+qemu_guest_agent_service_name: qemu-guest-agent
+
+ovirt_guest_agent_package_name: qemu-guest-agent
+
+qemu_guest_agent_package_name: qemu-guest-agent
+
+vmware_install_open_vm_tools: true
+
+the_root_vgname: ubuntu-vg
+the_root_lvname: ubuntu-lv

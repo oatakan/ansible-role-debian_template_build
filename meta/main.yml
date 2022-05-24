@@ -1,0 +1,19 @@
+---
+dependencies: []
+
+galaxy_info:
+  author: oatakan
+  description: Debian template build.
+  role_name: debian_template_build
+  license: "license (BSD, MIT)"
+  min_ansible_version: 2.5
+  platforms:
+    - name: Debian
+  galaxy_tags:
+    - debian
+    - cloud
+    - system
+    - packaging
+    - development
+    - packer
+    - vmware

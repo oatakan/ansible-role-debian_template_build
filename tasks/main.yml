@@ -1,0 +1,131 @@
+---
+
+- name: Get the current kernel release.
+  command: uname -r
+  changed_when: false
+  register: kernel_release
+
+- name: Ensure apt cache is updated
+  apt:
+    update_cache: yes
+    force_apt_get: yes
+    cache_valid_time: 3600
+
+- name: Ensure kernel headers are installed
+  apt:
+    name: linux-headers-{{ ansible_kernel | default(kernel_release.stdout) }}
+    state: present
+
+- name: Configure SSH daemon
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+  loop:
+    - regexp: '^UseDNS'
+      line: 'UseDNS no'
+    - regexp: '^GSSAPIAuthentication'
+      line: 'GSSAPIAuthentication no'
+
+# Local user SSH configuration.
+- name: Configure local user .ssh directory
+  file:
+    path: /home/{{ local_account_username }}/.ssh
+    state: directory
+    owner: "{{ local_account_username }}"
+    group: "{{ local_account_username }}"
+    mode: 0700
+
+- name: Get Vagrant's public key
+  get_url:
+    url: https://github.com/hashicorp/vagrant/raw/master/keys/vagrant.pub
+    dest: /home/{{ local_account_username }}/.ssh/authorized_keys
+    owner: "{{ local_account_username }}"
+    group: "{{ local_account_username }}"
+    mode: 0600
+  ignore_errors: yes
+  when: from_vagrant | bool
+
+- include_tasks: ovirt.yml
+  when: target_ovirt | bool
+
+# VirtualBox tools installation
+- name: Check if VirtualBox is running the guest VM
+  stat:
+    path: /home/{{ local_account_username }}/.vbox_version
+  register: virtualbox_check
+
+- include_tasks: virtualbox.yml
+  when: virtualbox_check.stat.exists
+
+- include_tasks: vmware.yml
+  when:
+    - ansible_virtualization_type is defined
+    - ansible_virtualization_type == 'VMware'
+
+- name: Remove unneeded packages (using regex)
+  shell: "apt-get -y remove '.*-dev$'"
+  tags: ['skip_ansible_lint']
+
+- name: Clean up apt
+  command: "{{ item }}"
+  changed_when: false
+  with_items:
+    - apt-get -y autoremove
+    - apt-get -y clean
+
+- name: Ensure netplan machine-id files removed
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /var/lib/dbus/machine-id
+    - /etc/machine-id
+
+- name: Ensure netplan machine-id file exists
+  file:
+    path: /etc/machine-id
+    state: touch
+
+- name: Ensure netplan machine-id link exists
+  file:
+    src: /etc/machine-id
+    dest: /var/lib/dbus/machine-id
+    state: link
+
+- name: Ensure DHCP is used
+  template:
+    src: 00-installer-config.yaml.j2
+    dest: /etc/netplan/00-installer-config.yaml
+
+- include_tasks: cloud-init.yml
+  when: (target_ovirt | bool) or (enable_cloud_init | bool)
+
+- name: Remove ssh-host files
+  command: rm -fr /etc/ssh/ssh_host_*
+  changed_when: false
+  args:
+    warn: false
+
+- name: Zero out the rest of the free space
+  command: dd if=/dev/zero of=/tmp/EMPTY bs=1M
+  register: create_free_space
+  changed_when: true
+  become: false
+  failed_when:
+    - create_free_space.rc > 0
+    - ('No space left on device' not in create_free_space.stderr)
+
+- block:
+    - name: Ensure EMPTY doesn't exist
+      raw: rm -f /tmp/EMPTY && sync
+      changed_when: true
+      register: remove_empty
+      until: remove_empty is success
+      delay: 3
+      retries: 10
+      become: false
+  rescue:
+    - debug:
+        msg: 'ignoring error...'

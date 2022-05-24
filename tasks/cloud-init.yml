@@ -1,0 +1,43 @@
+---
+
+- name: ensure cloud-init packages are installed
+  package:
+    name:
+      - cloud-init
+      - cloud-initramfs-growroot
+      - gdisk
+
+- name: ensure cloud-init service is stopped
+  service:
+    name: cloud-init
+    state: stopped
+
+- name: ensure /var/lib/cloud is empty
+  file:
+    path: /var/lib/cloud
+    state: absent
+
+- name: clean cloud-init configuration
+  command: cloud-init clean -s -l
+
+- name: ensure cloud-init scripts directory exists
+  file:
+    path: /var/lib/cloud/scripts/per-instance
+    state: directory
+    mode: '0755'
+
+- name: create growpart cloud-init script to grow partition on boot
+  template:
+    src: grow_part.sh.j2
+    dest: /var/lib/cloud/scripts/per-instance/grow_part.sh
+    mode: u=rwx,g=rx,o=rx
+
+- name: ensure cloud-init config files are removed
+  file:
+    path: /etc/cloud/cloud.cfg.d/{{ item }}
+    state: absent
+  loop:
+    - 50-curtin-networking.cfg
+    - curtin-preserve-sources.cfg
+    - subiquity-disable-cloudinit-networking.cfg
+    - 99-installer.cfg

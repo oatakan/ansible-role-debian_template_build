@@ -1,0 +1,22 @@
+---
+
+# cloud-init seems to prevent vmware customization
+# see https://github.com/vmware/open-vm-tools/issues/421
+- name: disable cloud-init
+  file:
+    path: /etc/cloud/cloud-init.disabled
+    state: touch
+
+- name: Create /mnt/hgfs directory for synced folder mounts
+  file:
+    path: /mnt/hgfs
+    state: directory
+
+- name: Install open-vm-tools
+  apt:
+    name: open-vm-tools
+    state: present
+  when: vmware_install_open_vm_tools|bool
+
+- include_tasks: vmware-tools.yml
+  when: not vmware_install_open_vm_tools|bool

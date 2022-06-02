@@ -66,6 +66,8 @@
 
 - name: Remove unneeded packages (using regex)
   shell: "apt-get -y remove '.*-dev$'"
+  args:
+    warn: false
   tags: ['skip_ansible_lint']
 
 - name: Clean up apt

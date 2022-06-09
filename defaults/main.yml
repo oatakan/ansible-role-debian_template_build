@@ -1,5 +1,5 @@
 ---
-from_vagrant: no
+target_vagrant: no
 target_ovirt: no
 enable_cloud_init: no
 

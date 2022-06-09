@@ -45,7 +45,7 @@
     group: "{{ local_account_username }}"
     mode: 0600
   ignore_errors: yes
-  when: from_vagrant | bool
+  when: target_vagrant | bool
 
 - include_tasks: ovirt.yml
   when: target_ovirt | bool
@@ -109,6 +109,16 @@
   changed_when: false
   args:
     warn: false
+
+- name: Create generate-ssh-host-key.service
+  copy:
+    src: generate-ssh-host-key.service
+    dest: /etc/systemd/system/generate-ssh-host-key.service
+
+- name: Enable generate-ssh-host-key.service
+  systemd:
+    name: generate-ssh-host-key
+    enabled: yes
 
 - name: Zero out the rest of the free space
   command: dd if=/dev/zero of=/tmp/EMPTY bs=1M

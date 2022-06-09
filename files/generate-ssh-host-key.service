@@ -1,0 +1,13 @@
+[Unit]
+Description=Generate SSH host keys
+After=local-fs.target
+After=network.target
+
+[Service]
+ExecStart=-/usr/bin/ssh-keygen -A
+ExecStartPost=/bin/bash -c 'service=generate-ssh-host-key.service; systemctl disable $service && rm /etc/systemd/system/$service && systemctl daemon-reload'
+RemainAfterExit=true
+Type=oneshot
+
+[Install]
+WantedBy=multi-user.target

@@ -64,10 +64,12 @@
     - ansible_virtualization_type is defined
     - ansible_virtualization_type == 'VMware'
 
+- include_tasks: parallels.yml
+  when: ('Parallels' in (ansible_product_name | default('', true))) or (ansible_product_name == None and 'Parallels' in ansible_interfaces[0].interface_name)
+
 - name: Remove unneeded packages (using regex)
   shell: "apt-get -y remove '.*-dev$'"
-  args:
-    warn: false
+  no_log: true
   tags: ['skip_ansible_lint']
 
 - name: Clean up apt
@@ -107,8 +109,7 @@
 - name: Remove ssh-host files
   command: rm -fr /etc/ssh/ssh_host_*
   changed_when: false
-  args:
-    warn: false
+  no_log: true
 
 - name: Create generate-ssh-host-key.service
   copy:

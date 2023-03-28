@@ -12,6 +12,8 @@ ovirt_guest_agent_package_name: qemu-guest-agent
 
 qemu_guest_agent_package_name: qemu-guest-agent
 
+parallels_tools_iso_file: /tmp/prl-tools-lin.iso
+
 vmware_install_open_vm_tools: true
 
 the_root_vgname: ubuntu-vg

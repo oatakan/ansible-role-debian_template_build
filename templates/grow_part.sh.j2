@@ -4,7 +4,7 @@ the_root_vgname='{{ ansible_lvm.lvs[the_root_lvname].vg | default('ubuntu-vg') }
 the_root_lvname='{{ the_root_lvname | default('ubuntu-lv') }}'
 the_root_pvname=$(vgdisplay -v $the_root_vgname 2> /dev/null | awk '/PV Name/ {print $3}')
 the_root_pv_partnum=$(echo $the_root_pvname | grep -o '[0-9]$')
-the_root_pv_device=$(echo $the_root_pvname | grep -o '.*[^0-9]')
+the_root_pv_device="/dev/$(lsblk -ndo PKNAME $the_root_pvname)"
 the_root_mount_point=$(lsblk -l -o NAME,MOUNTPOINT | grep ${the_root_vgname//-/--}-${the_root_lvname//-/--} | awk '{print $2}')
 
 /usr/bin/growpart $the_root_pv_device $the_root_pv_partnum

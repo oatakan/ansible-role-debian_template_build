@@ -1,0 +1,12 @@
+[Unit]
+Description=Extend root partition and resize file system
+After=local-fs.target
+Wants=local-fs.target
+
+[Service]
+ExecStart=/usr/local/bin/grow_part.sh
+Type=oneshot
+ExecStop=/bin/sh -c "/usr/bin/systemctl disable growpart.service || exit 0"
+
+[Install]
+WantedBy=multi-user.target

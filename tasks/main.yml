@@ -106,6 +106,9 @@
 - include_tasks: cloud-init.yml
   when: (target_ovirt | bool) or (enable_cloud_init | bool)
 
+- include_tasks: grow_part.yml
+  when: not (target_ovirt | bool)
+
 - name: Remove ssh-host files
   command: rm -fr /etc/ssh/ssh_host_*
   changed_when: false

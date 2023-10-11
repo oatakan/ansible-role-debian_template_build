@@ -1,0 +1,25 @@
+---
+
+- name: ensure growpart packages are installed
+  ansible.builtin.package:
+    name:
+      - cloud-initramfs-growroot
+      - gdisk
+
+- name: create growpart cloud-init script to grow partition on boot
+  ansible.builtin.template:
+    src: grow_part.sh.j2
+    dest: /usr/local/bin/grow_part.sh
+    mode: u=rwx,g=rx,o=rx
+
+- name: copy growpart service
+  ansible.builtin.copy:
+    src: growpart.service
+    dest: /etc/systemd/system/growpart.service
+
+- name: reload service
+  ansible.builtin.systemd:
+    name: growpart
+    daemon_reload: true
+    enabled: true
+    state: stopped

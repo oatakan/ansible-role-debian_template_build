@@ -1,0 +1,3 @@
+---
+
+parallels_tools_iso_file: "/home/{{ local_account_username }}/prl-tools-lin.iso"

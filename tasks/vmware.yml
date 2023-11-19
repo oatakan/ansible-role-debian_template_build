@@ -3,26 +3,29 @@
 # cloud-init seems to prevent vmware customization
 # see https://github.com/vmware/open-vm-tools/issues/421
 - name: check /etc/cloud directory
-  stat:
+  ansible.builtin.stat:
     path: /etc/cloud
   register: check_etc_cloud_dir
 
 - name: disable cloud-init
-  file:
+  ansible.builtin.file:
     path: /etc/cloud/cloud-init.disabled
     state: touch
+    mode: '0755'
   when: check_etc_cloud_dir.stat.exists
 
 - name: Create /mnt/hgfs directory for synced folder mounts
-  file:
+  ansible.builtin.file:
     path: /mnt/hgfs
     state: directory
+    mode: '0777'
 
 - name: Install open-vm-tools
-  apt:
+  ansible.builtin.apt:
     name: open-vm-tools
     state: present
   when: vmware_install_open_vm_tools|bool
 
-- include_tasks: vmware-tools.yml
+- name: vmware tools
+  ansible.builtin.include_tasks: vmware-tools.yml
   when: not vmware_install_open_vm_tools|bool

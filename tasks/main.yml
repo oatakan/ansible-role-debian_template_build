@@ -1,23 +1,23 @@
 ---
 
 - name: Get the current kernel release.
-  command: uname -r
+  ansible.builtin.command: uname -r
   changed_when: false
   register: kernel_release
 
 - name: Ensure apt cache is updated
-  apt:
-    update_cache: yes
-    force_apt_get: yes
+  ansible.builtin.apt:
+    update_cache: true
+    force_apt_get: true
     cache_valid_time: 3600
 
 - name: Ensure kernel headers are installed
-  apt:
+  ansible.builtin.apt:
     name: linux-headers-{{ ansible_kernel | default(kernel_release.stdout) }}
     state: present
 
 - name: Configure SSH daemon
-  lineinfile:
+  ansible.builtin.lineinfile:
     dest: /etc/ssh/sshd_config
     regexp: "{{ item.regexp }}"
     line: "{{ item.line }}"
@@ -30,57 +30,62 @@
 
 # Local user SSH configuration.
 - name: Configure local user .ssh directory
-  file:
+  ansible.builtin.file:
     path: /home/{{ local_account_username }}/.ssh
     state: directory
     owner: "{{ local_account_username }}"
     group: "{{ local_account_username }}"
-    mode: 0700
+    mode: '0700'
 
 - name: Get Vagrant's public key
-  get_url:
+  ansible.builtin.get_url:
     url: https://github.com/hashicorp/vagrant/raw/master/keys/vagrant.pub
     dest: /home/{{ local_account_username }}/.ssh/authorized_keys
     owner: "{{ local_account_username }}"
     group: "{{ local_account_username }}"
-    mode: 0600
-  ignore_errors: yes
+    mode: '0600'
+  ignore_errors: true
   when: target_vagrant | bool
 
-- include_tasks: ovirt.yml
+- name: ovirt agent
+  ansible.builtin.include_tasks: ovirt.yml
   when: target_ovirt | bool
 
 # VirtualBox tools installation
 - name: Check if VirtualBox is running the guest VM
-  stat:
+  ansible.builtin.stat:
     path: /home/{{ local_account_username }}/.vbox_version
   register: virtualbox_check
 
-- include_tasks: virtualbox.yml
+- name: virtualbox guest additions
+  ansible.builtin.include_tasks: virtualbox.yml
   when: virtualbox_check.stat.exists
 
-- include_tasks: vmware.yml
+- name: vmware tools
+  ansible.builtin.include_tasks: vmware.yml
   when:
     - ansible_virtualization_type is defined
     - ansible_virtualization_type == 'VMware'
 
-- include_tasks: parallels.yml
+- name: parallels tools
+  ansible.builtin.include_role:
+    name: "{{ parallels_tools_role }}"
   when: ('Parallels' in (ansible_product_name | default('', true))) or (ansible_product_name == None and 'Parallels' in ansible_interfaces[0].interface_name)
 
 - name: Remove unneeded packages (using regex)
-  shell: "apt-get -y remove '.*-dev$'"
+  ansible.builtin.shell: "apt-get -y remove '.*-dev$'"
   no_log: true
   tags: ['skip_ansible_lint']
 
 - name: Clean up apt
-  command: "{{ item }}"
+  ansible.builtin.command: "{{ item }}"
   changed_when: false
   with_items:
     - apt-get -y autoremove
     - apt-get -y clean
 
 - name: Ensure netplan machine-id files removed
-  file:
+  ansible.builtin.file:
     path: "{{ item }}"
     state: absent
   loop:
@@ -88,44 +93,49 @@
     - /etc/machine-id
 
 - name: Ensure netplan machine-id file exists
-  file:
+  ansible.builtin.file:
     path: /etc/machine-id
     state: touch
+    mode: '0644'
 
 - name: Ensure netplan machine-id link exists
-  file:
+  ansible.builtin.file:
     src: /etc/machine-id
     dest: /var/lib/dbus/machine-id
     state: link
 
 - name: Ensure DHCP is used
-  template:
+  ansible.builtin.template:
     src: 00-installer-config.yaml.j2
     dest: /etc/netplan/00-installer-config.yaml
+    mode: '0644'
 
-- include_tasks: cloud-init.yml
+- name: cloud init
+  ansible.builtin.include_tasks: cloud-init.yml
   when: (target_ovirt | bool) or (enable_cloud_init | bool)
 
-- include_tasks: grow_part.yml
+- name: grow partition
+  ansible.builtin.include_tasks: grow_part.yml
   when: not (target_ovirt | bool)
 
 - name: Remove ssh-host files
-  command: rm -fr /etc/ssh/ssh_host_*
+  ansible.builtin.command: rm -fr /etc/ssh/ssh_host_*
   changed_when: false
   no_log: true
 
 - name: Create generate-ssh-host-key.service
-  copy:
+  ansible.builtin.copy:
     src: generate-ssh-host-key.service
     dest: /etc/systemd/system/generate-ssh-host-key.service
+    mode: '0755'
 
 - name: Enable generate-ssh-host-key.service
-  systemd:
+  ansible.builtin.systemd:
     name: generate-ssh-host-key
-    enabled: yes
+    enabled: true
 
 - name: Zero out the rest of the free space
-  command: dd if=/dev/zero of=/tmp/EMPTY bs=1M
+  ansible.builtin.command: dd if=/dev/zero of=/tmp/EMPTY bs=1M
   register: create_free_space
   changed_when: true
   become: false
@@ -133,9 +143,10 @@
     - create_free_space.rc > 0
     - ('No space left on device' not in create_free_space.stderr)
 
-- block:
+- name: Fill empty space
+  block:
     - name: Ensure EMPTY doesn't exist
-      raw: rm -f /tmp/EMPTY && sync
+      ansible.builtin.raw: rm -f /tmp/EMPTY && sync
       changed_when: true
       register: remove_empty
       until: remove_empty is success
@@ -143,5 +154,6 @@
       retries: 10
       become: false
   rescue:
-    - debug:
+    - name: Ignore any errors
+      ansible.builtin.debug:
         msg: 'ignoring error...'

@@ -1,14 +1,15 @@
 ---
 - name: Create temporary directories for VMware tools.
-  file:
+  ansible.builtin.file:
     path: "/tmp/{{ item }}"
     state: directory
+    mode: '0755'
   loop:
     - vmfusion
     - vmfusion-archive
 
 - name: Mount VMware tools.
-  mount:
+  ansible.posix.mount:
     name: /tmp/vmfusion
     src: /home/{{ local_account_username }}/linux.iso
     fstype: iso9660
@@ -16,39 +17,41 @@
     state: mounted
 
 - name: Find any VMwareTools file.
-  find:
+  ansible.builtin.find:
     paths: /tmp/vmfusion
     patterns: "^VMwareTools-*.tar.gz"
-    use_regex: yes
+    use_regex: true
   register: vmware_tools_files
 
-- block:
+- name: Install vmware tools
+  block:
     - name: Decompress VMware Tools installer into archive folder
-      unarchive:
+      ansible.builtin.unarchive:
         src: "{{ vmware_tools_files.files[0] }}"
         dest: /tmp/vmfusion-archive
-        remote_src: yes
+        remote_src: true
 
     - name: Run the VMware tools installer
-      shell: /tmp/vmfusion-archive/vmware-tools-distrib/vmware-install.pl --default
+      ansible.builtin.shell: /tmp/vmfusion-archive/vmware-tools-distrib/vmware-install.pl --default
       register: vmtools_installer_output
       changed_when: false
 
     - name: Run the VMware tools installer with --force-install
-      shell: /tmp/vmfusion-archive/vmware-tools-distrib/vmware-install.pl --default --force-install
+      ansible.builtin.shell: /tmp/vmfusion-archive/vmware-tools-distrib/vmware-install.pl --default --force-install
+      changed_when: false
       when: vmtools_installer_output.stdout.find('open-vm-tools') != -1
 
   when: vmware_tools_files.matched > 0
 
 - name: Unmount VMware tools.
-  mount:
+  ansible.posix.mount:
     name: /tmp/vmfusion
     src: /home/{{ local_account_username }}/linux.iso
     fstype: iso9660
     state: absent
 
 - name: Remove temporary directories for VMware tools.
-  file:
+  ansible.builtin.file:
     path: "/tmp/{{ item }}"
     state: absent
   loop:
@@ -56,6 +59,6 @@
     - vmfusion-archive
 
 - name: Delete VMware Tools.
-  file:
+  ansible.builtin.file:
     path: /home/{{ local_account_username }}/linux.iso
     state: absent

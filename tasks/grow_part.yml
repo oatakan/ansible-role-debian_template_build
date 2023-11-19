@@ -16,6 +16,7 @@
   ansible.builtin.copy:
     src: growpart.service
     dest: /etc/systemd/system/growpart.service
+    mode: '0755'
 
 - name: reload service
   ansible.builtin.systemd:

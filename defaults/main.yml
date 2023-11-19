@@ -1,7 +1,7 @@
 ---
-target_vagrant: no
-target_ovirt: no
-enable_cloud_init: no
+target_vagrant: false
+target_ovirt: false
+enable_cloud_init: false
 
 local_account_username: ansible
 
@@ -12,7 +12,7 @@ ovirt_guest_agent_package_name: qemu-guest-agent
 
 qemu_guest_agent_package_name: qemu-guest-agent
 
-parallels_tools_iso_file: "/home/{{ local_account_username }}/prl-tools-lin.iso"
+parallels_tools_role: oatakan.linux_parallels_tools
 
 vmware_install_open_vm_tools: true
 

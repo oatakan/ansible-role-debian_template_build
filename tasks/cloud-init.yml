@@ -1,39 +1,40 @@
 ---
 
 - name: ensure cloud-init packages are installed
-  package:
+  ansible.builtin.package:
     name:
       - cloud-init
       - cloud-initramfs-growroot
       - gdisk
 
 - name: ensure cloud-init service is stopped
-  service:
+  ansible.builtin.service:
     name: cloud-init
     state: stopped
 
 - name: ensure /var/lib/cloud is empty
-  file:
+  ansible.builtin.file:
     path: /var/lib/cloud
     state: absent
 
 - name: clean cloud-init configuration
-  command: cloud-init clean -s -l
+  ansible.builtin.command: cloud-init clean -s -l
+  changed_when: false
 
 - name: ensure cloud-init scripts directory exists
-  file:
+  ansible.builtin.file:
     path: /var/lib/cloud/scripts/per-instance
     state: directory
     mode: '0755'
 
 - name: create growpart cloud-init script to grow partition on boot
-  template:
+  ansible.builtin.template:
     src: grow_part.sh.j2
     dest: /var/lib/cloud/scripts/per-instance/grow_part.sh
     mode: u=rwx,g=rx,o=rx
 
 - name: ensure cloud-init config files are removed
-  file:
+  ansible.builtin.file:
     path: /etc/cloud/cloud.cfg.d/{{ item }}
     state: absent
   loop:

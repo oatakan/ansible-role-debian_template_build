@@ -1,22 +1,23 @@
 ---
+
 - name: install prereq packages
-  apt:
+  ansible.builtin.apt:
     name:
       - build-essential
       - dkms
     state: present
 
 - name: Get VirtualBox version.
-  slurp:
+  ansible.builtin.slurp:
     src: /home/{{ local_account_username }}/.vbox_version
   register: get_virtualbox_version
 
 - name: Set VirtualBox version.
-  set_fact:
+  ansible.builtin.set_fact:
     virtualbox_version: "{{ get_virtualbox_version['content'] | b64decode }}"
 
 - name: Mount VirtualBox guest additions ISO.
-  mount:
+  ansible.posix.mount:
     name: /tmp/vbox
     src: "/home/{{ local_account_username }}/VBoxGuestAdditions_{{ virtualbox_version }}.iso"
     opts: loop
@@ -24,18 +25,18 @@
     fstype: iso9660
 
 - name: Run VirtualBox guest additions installation.
-  shell: sh /tmp/vbox/VBoxLinuxAdditions.run
+  ansible.builtin.shell: sh /tmp/vbox/VBoxLinuxAdditions.run
   changed_when: false
   failed_when: false
 
 - name: Unmount VirtualBox guest additions ISO.
-  mount:
+  ansible.posix.mount:
     name: /tmp/vbox
     src: "/home/{{ local_account_username }}/VBoxGuestAdditions_{{ virtualbox_version }}.iso"
     state: absent
     fstype: iso9660
 
 - name: Delete VirtualBox guest additions ISO.
-  file:
+  ansible.builtin.file:
     path: "/home/{{ local_account_username }}/VBoxGuestAdditions_{{ virtualbox_version }}.iso"
     state: absent

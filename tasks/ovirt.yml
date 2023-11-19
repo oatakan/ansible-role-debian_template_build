@@ -1,10 +1,10 @@
 ---
 
 - name: ensure ovirt guest agent package is installed
-  package:
+  ansible.builtin.package:
     name: "{{ ovirt_guest_agent_package_name }}"
 
 - name: ensure ovirt guest agent is enabled
-  service:
+  ansible.builtin.service:
     name: "{{ ovirt_guest_agent_service_name }}"
-    enabled: yes
+    enabled: true

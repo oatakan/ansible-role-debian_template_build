@@ -73,14 +73,15 @@
   when: ('Parallels' in (ansible_product_name | default('', true))) or (ansible_product_name == None and 'Parallels' in ansible_interfaces[0].interface_name)
 
 - name: Remove unneeded packages (using regex)
-  ansible.builtin.shell: "apt-get -y remove '.*-dev$'"
+  ansible.builtin.shell: apt-get remove -y --purge $(dpkg -l | awk '{print $2}' | grep -E "\-dev$")
   no_log: true
+  ignore_errors: true
   tags: ['skip_ansible_lint']
 
 - name: Clean up apt
   ansible.builtin.command: "{{ item }}"
   changed_when: false
-  with_items:
+  loop:
     - apt-get -y autoremove
     - apt-get -y clean
 

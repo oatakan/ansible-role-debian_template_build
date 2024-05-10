@@ -1,0 +1,32 @@
+---
+
+- name: gather package facts
+  ansible.builtin.package_facts:
+    manager: auto
+
+- name: set fact for -dev packages
+  ansible.builtin.set_fact:
+    dev_packages: "{{ ansible_facts.packages | dict2items | selectattr('key', 'match', '.*-dev$') | map(attribute='key') | list }}"
+
+- name: remove -dev packages
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: absent
+    purge: true
+  loop: "{{ dev_packages }}"
+  register: remove_dev_packages
+  ignore_errors: true
+  when: dev_packages is defined and dev_packages | length > 0
+
+- name: debug failed packages
+  ansible.builtin.debug:
+    msg: |
+      Failed to remove some packages:
+      {% for package in _failed_packages %}
+        - {{ package }}
+      {% endfor %}
+  when:
+    - remove_dev_packages.results is defined
+    - _failed_packages | length > 0
+  vars:
+    _failed_packages: "{{ remove_dev_packages.results | selectattr('failed', 'defined') | selectattr('failed', 'equalto', true) | map(attribute='item') | list }}"

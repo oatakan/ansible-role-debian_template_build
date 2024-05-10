@@ -1,22 +1,22 @@
 ---
 
-- name: Get the current kernel release.
+- name: get the current kernel release.
   ansible.builtin.command: uname -r
   changed_when: false
   register: kernel_release
 
-- name: Ensure apt cache is updated
+- name: ensure apt cache is updated
   ansible.builtin.apt:
     update_cache: true
     force_apt_get: true
     cache_valid_time: 3600
 
-- name: Ensure kernel headers are installed
+- name: ensure kernel headers are installed
   ansible.builtin.apt:
     name: linux-headers-{{ ansible_kernel | default(kernel_release.stdout) }}
     state: present
 
-- name: Configure SSH daemon
+- name: configure SSH daemon
   ansible.builtin.lineinfile:
     dest: /etc/ssh/sshd_config
     regexp: "{{ item.regexp }}"
@@ -29,7 +29,7 @@
       line: 'GSSAPIAuthentication no'
 
 # Local user SSH configuration.
-- name: Configure local user .ssh directory
+- name: configure local user .ssh directory
   ansible.builtin.file:
     path: /home/{{ local_account_username }}/.ssh
     state: directory
@@ -37,7 +37,7 @@
     group: "{{ local_account_username }}"
     mode: '0700'
 
-- name: Get Vagrant's public key
+- name: get Vagrant's public key
   ansible.builtin.get_url:
     url: https://github.com/hashicorp/vagrant/raw/master/keys/vagrant.pub
     dest: /home/{{ local_account_username }}/.ssh/authorized_keys
@@ -52,7 +52,7 @@
   when: target_ovirt | bool
 
 # VirtualBox tools installation
-- name: Check if VirtualBox is running the guest VM
+- name: check if VirtualBox is running the guest VM
   ansible.builtin.stat:
     path: /home/{{ local_account_username }}/.vbox_version
   register: virtualbox_check
@@ -72,20 +72,17 @@
     name: "{{ parallels_tools_role }}"
   when: ('Parallels' in (ansible_product_name | default('', true))) or (ansible_product_name == None and 'Parallels' in ansible_interfaces[0].interface_name)
 
-- name: Remove unneeded packages (using regex)
-  ansible.builtin.shell: apt-get remove -y --purge $(dpkg -l | awk '{print $2}' | grep -E "\-dev$")
-  no_log: true
-  ignore_errors: true
-  tags: ['skip_ansible_lint']
+- name: remove unneeded packages
+  ansible.builtin.include_tasks: remove_packages.yml
 
-- name: Clean up apt
+- name: clean up apt
   ansible.builtin.command: "{{ item }}"
   changed_when: false
   loop:
     - apt-get -y autoremove
     - apt-get -y clean
 
-- name: Ensure netplan machine-id files removed
+- name: ensure netplan machine-id files removed
   ansible.builtin.file:
     path: "{{ item }}"
     state: absent
@@ -111,11 +108,11 @@
     dest: /etc/netplan/00-installer-config.yaml
     mode: '0644'
 
-- name: cloud init
+- name: Cloud init
   ansible.builtin.include_tasks: cloud-init.yml
   when: (target_ovirt | bool) or (enable_cloud_init | bool)
 
-- name: grow partition
+- name: Grow partition
   ansible.builtin.include_tasks: grow_part.yml
   when: not (target_ovirt | bool)
 

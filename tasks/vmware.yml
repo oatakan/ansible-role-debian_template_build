@@ -14,13 +14,13 @@
     mode: '0755'
   when: check_etc_cloud_dir.stat.exists
 
-- name: Create /mnt/hgfs directory for synced folder mounts
+- name: create /mnt/hgfs directory for synced folder mounts
   ansible.builtin.file:
     path: /mnt/hgfs
     state: directory
     mode: '0777'
 
-- name: Install open-vm-tools
+- name: install open-vm-tools
   ansible.builtin.apt:
     name: open-vm-tools
     state: present

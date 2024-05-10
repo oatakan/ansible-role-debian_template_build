@@ -7,16 +7,16 @@
       - dkms
     state: present
 
-- name: Get VirtualBox version.
+- name: get VirtualBox version.
   ansible.builtin.slurp:
     src: /home/{{ local_account_username }}/.vbox_version
   register: get_virtualbox_version
 
-- name: Set VirtualBox version.
+- name: set VirtualBox version.
   ansible.builtin.set_fact:
     virtualbox_version: "{{ get_virtualbox_version['content'] | b64decode }}"
 
-- name: Mount VirtualBox guest additions ISO.
+- name: mount VirtualBox guest additions ISO.
   ansible.posix.mount:
     name: /tmp/vbox
     src: "/home/{{ local_account_username }}/VBoxGuestAdditions_{{ virtualbox_version }}.iso"
@@ -24,19 +24,19 @@
     state: mounted
     fstype: iso9660
 
-- name: Run VirtualBox guest additions installation.
+- name: run VirtualBox guest additions installation.
   ansible.builtin.shell: sh /tmp/vbox/VBoxLinuxAdditions.run
   changed_when: false
   failed_when: false
 
-- name: Unmount VirtualBox guest additions ISO.
+- name: unmount VirtualBox guest additions ISO.
   ansible.posix.mount:
     name: /tmp/vbox
     src: "/home/{{ local_account_username }}/VBoxGuestAdditions_{{ virtualbox_version }}.iso"
     state: absent
     fstype: iso9660
 
-- name: Delete VirtualBox guest additions ISO.
+- name: delete VirtualBox guest additions ISO.
   ansible.builtin.file:
     path: "/home/{{ local_account_username }}/VBoxGuestAdditions_{{ virtualbox_version }}.iso"
     state: absent

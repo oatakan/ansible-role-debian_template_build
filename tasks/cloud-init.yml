@@ -7,10 +7,18 @@
       - cloud-initramfs-growroot
       - gdisk
 
+- name: ensure cloud-init is not disabled
+  ansible.builtin.file:
+    path: /etc/cloud/cloud-init.disabled
+    state: absent
+
 - name: ensure cloud-init service is stopped
   ansible.builtin.service:
     name: cloud-init
     state: stopped
+  when: >
+    (ansible_distribution == "Ubuntu" and ansible_distribution_version is version('24.10', '<')) or
+    (ansible_distribution == "Debian")
 
 - name: ensure /var/lib/cloud is empty
   ansible.builtin.file:

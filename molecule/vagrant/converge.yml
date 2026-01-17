@@ -1,0 +1,38 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  vars:
+    # Enable Vagrant-specific configuration
+    target_vagrant: true
+    target_ovirt: false
+    local_account_username: vagrant
+
+  pre_tasks:
+    - name: Update package cache (Debian)
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+      when: ansible_os_family == 'Debian'
+
+  roles:
+    - role: oatakan.debian_template_build
+
+  post_tasks:
+    - name: Verify Vagrant public key was installed
+      ansible.builtin.stat:
+        path: /home/vagrant/.ssh/authorized_keys
+      register: vagrant_key
+      failed_when: not vagrant_key.stat.exists
+
+    - name: Verify SSH configuration
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        line: "{{ item }}"
+        state: present
+      check_mode: true
+      register: ssh_config
+      failed_when: ssh_config.changed
+      loop:
+        - "UseDNS no"
+        - "GSSAPIAuthentication no"

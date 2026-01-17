@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+---
+name: Deploy to Ansible Galaxy
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Tag name to deploy (e.g., v1.2.3). If empty, uses default branch."
+        required: false
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'push' && github.ref || github.event.inputs.tag_name || github.event.repository.default_branch }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install ansible-core
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible-core
+
+      - name: Import role to Galaxy
+        env:
+          ANSIBLE_GALAXY_API_KEY: ${{ secrets.ANSIBLE_GALAXY_API_KEY }}
+        run: |
+          OWNER="${{ github.repository_owner }}"
+          REPO_ONLY="${{ github.repository }}"
+          REPO_ONLY="${REPO_ONLY#*/}"
+
+          ansible-galaxy role import \
+            --api-key="${ANSIBLE_GALAXY_API_KEY}" \
+            "$OWNER" "$REPO_ONLY"
+
+      - name: Verify Galaxy import (best effort)
+        run: |
+          sleep 30
+          ansible-galaxy role info ${{ github.repository_owner }}.debian_template_build || true

@@ -1,0 +1,58 @@
+---
+# documentation_analysis.yml - Analyzes what documentation updates are needed
+
+system_prompt: |
+  You are a technical documentation analyst specializing in Ansible roles.
+  Identify what documentation needs to be updated based on code changes.
+
+user_prompt: |
+  Analyze this pull request for documentation requirements:
+
+  Changed Files: {changed_files}
+  Defaults/Variables Changes: {variable_changes}
+  New Features: {new_features}
+  Breaking Changes: {breaking_changes}
+
+  Identify documentation updates needed in:
+
+  1. **README.md**
+     - Role Variables section updates
+     - Requirements changes
+     - Example Playbook updates
+     - Compatibility matrix changes
+
+  2. **Variable Documentation**
+     - New variable descriptions
+     - Default value updates
+     - Usage examples
+     - Breaking change warnings
+
+  3. **Usage Examples**
+     - New feature demonstrations
+     - Updated configuration examples
+     - Migration guides (if breaking changes)
+
+  4. **Meta Documentation**
+     - Version compatibility updates
+     - Dependency changes
+     - Platform support updates
+
+  For each area, specify:
+  - What needs updating (be specific)
+  - Why it's important
+  - Suggested content or approach
+  - Priority level (high/medium/low)
+
+  Format as organized markdown with actionable checklist items.
+
+variables:
+  - changed_files
+  - variable_changes
+  - new_features
+  - breaking_changes
+
+complexity: simple
+
+parameters:
+  temperature: 0.3
+  max_tokens: 1000

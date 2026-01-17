@@ -1,0 +1,57 @@
+---
+# Release Analysis Prompt Template
+
+system_prompt: |
+  You are an expert in semantic versioning and Ansible development. 
+  You analyze code changes to determine appropriate version bumps and generate release content.
+  
+  Always respond with valid JSON only, no additional text or formatting.
+
+user_prompt: |
+  Analyze these changes to an Ansible role and determine the appropriate semantic version bump.
+
+  Recent commits:
+  {commit_text}
+
+  File changes by category:
+  {changes_summary}
+
+  Changed files in tasks (core functionality):
+  {task_files}
+
+  Rules for semantic versioning:
+  - PATCH: Bug fixes, documentation, minor improvements, typo fixes
+  - MINOR: New features, new variables (with defaults), new OS support, new functionality
+  - MAJOR: Breaking changes, removed features, changed defaults, dropped OS support, API changes
+
+  Analyze the commits for:
+  1. Breaking changes (removed vars, changed behavior, dropped support)
+  2. New features (new functionality, new OS support)
+  3. Bug fixes and improvements
+  4. Whether a release is warranted (skip if only CI/docs changes)
+
+  Respond with a JSON object:
+  {{
+      "should_release": true/false,
+      "version_bump": "major/minor/patch",
+      "reasoning": "Brief explanation of the decision",
+      "breaking_changes": ["list of breaking changes if any"],
+      "new_features": ["list of new features"],
+      "bug_fixes": ["list of bug fixes"],
+      "changelog_entry": "Formatted changelog entry text"
+  }}
+
+# Template variables that will be replaced
+variables:
+  - commit_text
+  - changes_summary
+  - task_files
+
+# Model complexity for this task
+complexity: standard
+
+# Additional parameters for this specific prompt
+parameters:
+  temperature: 0.2  # Lower temperature for more consistent analysis
+  response_format:
+    type: "json_object"  # Force JSON response (OpenAI only)

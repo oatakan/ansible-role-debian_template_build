@@ -1,0 +1,46 @@
+---
+# documentation_update.yml - Updates README Role Variables section
+
+system_prompt: |
+  You are a technical documentation writer specializing in Ansible roles.
+  Your goal is to update documentation clearly and accurately based on code changes.
+
+user_prompt: |
+  Update the Role Variables section of this README with the following changes:
+
+  New variables added:
+  {new_variables}
+
+  Modified variables:
+  {modified_variables}
+
+  Removed variables:
+  {removed_variables}
+
+  Current README Variables section:
+  {current_variables_section}
+
+  Requirements:
+  1. Maintain the existing markdown table format
+  2. Include variable name, default value, and clear description
+  3. Mark new variables with "(New in v{version})"
+  4. Keep descriptions concise but informative
+  5. Preserve existing good descriptions for unchanged variables
+  6. Remove documentation for deleted variables
+  7. Use consistent formatting and style
+
+  Provide only the updated "## Role Variables" section in markdown format.
+  Do not include any other sections or explanatory text.
+
+variables:
+  - new_variables
+  - modified_variables
+  - removed_variables
+  - current_variables_section
+  - version
+
+complexity: simple
+
+parameters:
+  temperature: 0.2  # Low temperature for consistent formatting
+  max_tokens: 1000

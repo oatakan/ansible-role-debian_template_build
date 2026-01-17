@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 ---
 name: CI
 
@@ -10,6 +11,7 @@ on:
       - 'CHANGELOG.md'
       - '.gitignore'
       - 'LICENSE'
+      - '.github/workflows/post-release-updates.yml'
 
 env:
   ANSIBLE_ROLES_PATH: $RUNNER_TEMP/roles
@@ -174,3 +176,24 @@ jobs:
             echo "- Docker Tests: ${{ needs.test-docker.result }}"
             exit 1
           fi
+
+      - name: Create consistent status check
+        uses: Sibz/github-status-action@v1
+        with:
+          authToken: ${{ secrets.GITHUB_TOKEN }}
+          context: 'ci-quality-gate'
+          description: 'All required CI checks passed'
+          state: 'success'
+          sha: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Post CI Summary
+        run: |
+          echo "### 🎯 CI Pipeline Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Linting | ${{ needs.lint.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Syntax Check | ${{ needs.syntax-check.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Tests | ${{ needs.test-docker.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Result: All core CI checks completed successfully** ✅" >> $GITHUB_STEP_SUMMARY

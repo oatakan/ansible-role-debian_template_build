@@ -12,6 +12,7 @@ on:
       - '.gitignore'
       - 'LICENSE'
       - '.github/workflows/post-release-updates.yml'
+  workflow_dispatch:
 
 env:
   ANSIBLE_ROLES_PATH: $RUNNER_TEMP/roles
@@ -197,3 +198,70 @@ jobs:
           echo "| Docker Tests | ${{ needs.test-docker.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Result: All core CI checks completed successfully** ✅" >> $GITHUB_STEP_SUMMARY
+
+  # OPTIONAL VM TESTS - Don't block CI success
+  test-vagrant:
+    runs-on: self-hosted
+    if: github.event_name == 'workflow_dispatch'
+    timeout-minutes: 60
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        box:
+          - generic/debian12
+          - generic/ubuntu2204
+          - generic/ubuntu2404
+    steps:
+      - name: Check for self-hosted runner
+        run: |
+          echo "🔍 Checking if this is a capable self-hosted runner..."
+          if command -v vagrant &> /dev/null && command -v VBoxManage &> /dev/null; then
+            echo "✅ Vagrant and VirtualBox available"
+            echo "RUNNER_CAPABLE=true" >> $GITHUB_ENV
+          else
+            echo "⚠️  Vagrant or VirtualBox not available"
+            echo "RUNNER_CAPABLE=false" >> $GITHUB_ENV
+          fi
+
+      - name: Checkout code
+        if: env.RUNNER_CAPABLE == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up role locally
+        if: env.RUNNER_CAPABLE == 'true'
+        run: |
+          mkdir -p tests/roles
+          ln -s ${{ github.workspace }} tests/roles/oatakan.debian_template_build
+
+      - name: Set up Python
+        if: env.RUNNER_CAPABLE == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        if: env.RUNNER_CAPABLE == 'true'
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install 'ansible-core>=2.14,<2.17' molecule molecule-plugins[vagrant]
+
+      - name: Install collections
+        if: env.RUNNER_CAPABLE == 'true'
+        run: |
+          ansible-galaxy collection install community.general ansible.posix
+
+      - name: Run Molecule vagrant tests
+        if: env.RUNNER_CAPABLE == 'true'
+        run: |
+          cd molecule/vagrant
+          molecule test
+        env:
+          ANSIBLE_ROLES_PATH: ${{ github.workspace }}/tests/roles
+          MOLECULE_VAGRANT_BOX: ${{ matrix.box }}
+
+      - name: Skip if runner not capable
+        if: env.RUNNER_CAPABLE == 'false'
+        run: |
+          echo "⏭️  Skipping VM tests - no capable self-hosted runner available"
+          echo "This is expected and doesn't affect CI status"

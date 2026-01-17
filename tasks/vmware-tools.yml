@@ -31,13 +31,17 @@
         dest: /tmp/vmfusion-archive
         remote_src: true
 
-    - name: run the VMware tools installer
+    - name: run the VMware tools installer  # noqa command-instead-of-shell
       ansible.builtin.shell: /tmp/vmfusion-archive/vmware-tools-distrib/vmware-install.pl --default
+      args:
+        executable: /bin/bash
       register: vmtools_installer_output
       changed_when: false
 
-    - name: run the VMware tools installer with --force-install
+    - name: run the VMware tools installer with --force-install  # noqa command-instead-of-shell
       ansible.builtin.shell: /tmp/vmfusion-archive/vmware-tools-distrib/vmware-install.pl --default --force-install
+      args:
+        executable: /bin/bash
       changed_when: false
       when: vmtools_installer_output.stdout.find('open-vm-tools') != -1
 

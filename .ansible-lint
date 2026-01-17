@@ -1,3 +1,44 @@
+---
+# .ansible-lint
+
 skip_list:
   - 'name[casing]'
   - 'key-order[task]'
+  - 'no-changed-when'
+  - 'risky-file-permissions'
+
+warn_list:
+  - experimental
+  - role-name
+  - ignore-errors
+
+enable_list:
+  - args
+  - empty-string-compare
+  - no-log-password
+  - no-same-owner
+  - transform-no-jinja-when
+
+exclude_paths:
+  - .cache/
+  - .github/
+  - molecule/default/.molecule/
+  - molecule/vagrant/.molecule/
+  - molecule/tart/state.yml
+
+mock_roles:
+  - oatakan.linux_parallels_tools
+
+kinds:
+  - tasks: "**/tasks/*.yml"
+  - vars: "**/vars/*.yml"
+  - meta: "**/meta/main.yml"
+  - yaml: "**/*.yaml"
+  - playbook: "**/tests/*.yml"
+
+offline: true
+
+extra_vars:
+  ansible_os_family: Debian
+  ansible_distribution: Debian
+  ansible_distribution_major_version: 12

@@ -5,6 +5,23 @@
   changed_when: false
   register: kernel_release
 
+- name: Detect container runtime (dockerenv)
+  ansible.builtin.stat:
+    path: /.dockerenv
+  register: dockerenv_stat
+  changed_when: false
+
+- name: Detect container runtime (containerenv)
+  ansible.builtin.stat:
+    path: /run/.containerenv
+  register: containerenv_stat
+  changed_when: false
+
+- name: Set container fact
+  ansible.builtin.set_fact:
+    is_container: >-
+      {{ (dockerenv_stat.stat.exists | default(false)) or (containerenv_stat.stat.exists | default(false)) }}
+
 - name: ensure apt cache is updated
   ansible.builtin.apt:
     update_cache: true
@@ -15,6 +32,10 @@
   ansible.builtin.apt:
     name: linux-headers-{{ ansible_kernel | default(kernel_release.stdout) }}
     state: present
+  when:
+    - (install_kernel_headers | default(true)) | bool
+    - (ansible_virtualization_type | default('')) not in ['docker', 'container', 'podman']
+    - not (is_container | default(false))
 
 - name: configure SSH daemon
   ansible.builtin.lineinfile:
@@ -44,12 +65,18 @@
     owner: "{{ local_account_username }}"
     group: "{{ local_account_username }}"
     mode: '0600'
-  ignore_errors: true
+  failed_when: false
   when: target_vagrant | bool
 
 - name: ovirt agent
   ansible.builtin.include_tasks: ovirt.yml
   when: target_ovirt | bool
+
+- name: tart guest agent
+  ansible.builtin.include_tasks: tart.yml
+  when:
+    - (target_tart | default(false)) | bool
+    - not (is_container | default(false))
 
 # VirtualBox tools installation
 - name: check if VirtualBox is running the guest VM
@@ -82,31 +109,54 @@
     - apt-get -y autoremove
     - apt-get -y clean
 
-- name: ensure netplan machine-id files removed
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: absent
-  loop:
-    - /var/lib/dbus/machine-id
-    - /etc/machine-id
-
-- name: Ensure netplan machine-id file exists
-  ansible.builtin.file:
-    path: /etc/machine-id
-    state: touch
+- name: Ensure /etc/machine-id exists and is empty (Ubuntu)
+  ansible.builtin.copy:
+    dest: /etc/machine-id
+    content: ''
     mode: '0644'
+  when:
+    - (configure_netplan | default(true)) | bool
+    - (reset_machine_id | default(true)) | bool
+    - ansible_distribution == 'Ubuntu'
+
+- name: Ensure /var/lib/dbus exists
+  ansible.builtin.file:
+    path: /var/lib/dbus
+    state: directory
+    mode: '0755'
+  when:
+    - (configure_netplan | default(true)) | bool
+    - (reset_machine_id | default(true)) | bool
+    - ansible_distribution == 'Ubuntu'
 
 - name: Ensure netplan machine-id link exists
   ansible.builtin.file:
     src: /etc/machine-id
     dest: /var/lib/dbus/machine-id
     state: link
+    force: true
+  when:
+    - (configure_netplan | default(true)) | bool
+    - (reset_machine_id | default(true)) | bool
+    - ansible_distribution == 'Ubuntu'
+
+- name: Ensure /etc/netplan exists
+  ansible.builtin.file:
+    path: /etc/netplan
+    state: directory
+    mode: '0755'
+  when:
+    - (configure_netplan | default(true)) | bool
+    - ansible_distribution == 'Ubuntu'
 
 - name: Ensure DHCP is used
   ansible.builtin.template:
     src: 00-installer-config.yaml.j2
     dest: /etc/netplan/00-installer-config.yaml
     mode: '0644'
+  when:
+    - (configure_netplan | default(true)) | bool
+    - ansible_distribution == 'Ubuntu'
 
 - name: Cloud init
   ansible.builtin.include_tasks: cloud-init.yml
@@ -114,7 +164,9 @@
 
 - name: Grow partition
   ansible.builtin.include_tasks: grow_part.yml
-  when: not (target_ovirt | bool)
+  when:
+    - not (target_ovirt | bool)
+    - (enable_grow_part | default(true)) | bool
 
 - name: Remove ssh-host files
   ansible.builtin.command: rm -fr /etc/ssh/ssh_host_*
@@ -140,6 +192,10 @@
   failed_when:
     - create_free_space.rc > 0
     - ('No space left on device' not in create_free_space.stderr)
+  when:
+    - (zero_free_space | default(true)) | bool
+    - (ansible_virtualization_type | default('')) not in ['docker', 'container', 'podman']
+    - not (is_container | default(false))
 
 - name: Fill empty space
   block:
@@ -155,3 +211,7 @@
     - name: Ignore any errors
       ansible.builtin.debug:
         msg: 'ignoring error...'
+  when:
+    - (zero_free_space | default(true)) | bool
+    - (ansible_virtualization_type | default('')) not in ['docker', 'container', 'podman']
+    - not (is_container | default(false))

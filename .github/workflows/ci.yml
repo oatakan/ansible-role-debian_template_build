@@ -1,0 +1,176 @@
+---
+name: CI
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'CHANGELOG.md'
+      - '.gitignore'
+      - 'LICENSE'
+
+env:
+  ANSIBLE_ROLES_PATH: $RUNNER_TEMP/roles
+  ANSIBLE_RETRY_FILES_ENABLED: false
+  ANSIBLE_PIPELINING: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible ansible-lint yamllint
+
+      - name: Install required collections
+        run: |
+          ansible-galaxy collection install community.general ansible.posix
+
+      - name: Set up role locally
+        run: |
+          mkdir -p "$RUNNER_TEMP/roles"
+          ln -s "${{ github.workspace }}" "$RUNNER_TEMP/roles/oatakan.debian_template_build"
+
+      - name: Run yamllint
+        run: yamllint .
+
+      - name: Run ansible-lint
+        run: ansible-lint
+
+  syntax-check:
+    runs-on: ubuntu-latest
+    needs: lint
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Ansible
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible
+
+      - name: Set up role locally
+        run: |
+          mkdir -p "$RUNNER_TEMP/roles"
+          ln -s "${{ github.workspace }}" "$RUNNER_TEMP/roles/oatakan.debian_template_build"
+
+      - name: Install required collections
+        run: |
+          ansible-galaxy collection install community.general ansible.posix
+
+      - name: Syntax check
+        run: |
+          ansible-playbook -i tests/inventory tests/test.yml --syntax-check
+
+  test-docker:
+    runs-on: ubuntu-latest
+    needs: syntax-check
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro_name: debian-12
+            molecule_distro: debian:12
+          - distro_name: ubuntu-22.04
+            molecule_distro: ubuntu:22.04
+          - distro_name: ubuntu-24.04
+            molecule_distro: ubuntu:24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo docker system prune -af
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install 'ansible-core>=2.14,<2.17' molecule molecule-plugins[docker]
+
+      - name: Set up role locally
+        run: |
+          mkdir -p "$RUNNER_TEMP/roles"
+          ln -s "${{ github.workspace }}" "$RUNNER_TEMP/roles/oatakan.debian_template_build"
+
+      - name: Install collections
+        run: |
+          ansible-galaxy collection install community.general community.docker ansible.posix
+
+      - name: Debug Docker and environment
+        run: |
+          echo "Testing distro: ${{ matrix.distro_name }}"
+          echo "Using image: ${{ matrix.molecule_distro }}"
+          docker --version
+          docker info
+
+      - name: Pre-pull Docker image
+        run: |
+          docker pull ${{ matrix.molecule_distro }} || echo "Failed to pre-pull, will try during test"
+
+      - name: Run Molecule tests
+        run: |
+          cd ${{ github.workspace }}
+          molecule test --scenario-name default
+        env:
+          MOLECULE_DISTRO: ${{ matrix.molecule_distro }}
+          ANSIBLE_FORCE_COLOR: '1'
+          PY_COLORS: '1'
+
+      - name: Upload molecule logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: molecule-logs-${{ matrix.distro_name }}
+          path: |
+            molecule/default/.molecule/
+            ~/.cache/molecule/
+          retention-days: 7
+
+  ci-success:
+    runs-on: ubuntu-latest
+    needs: [lint, syntax-check, test-docker]
+    if: always()
+    steps:
+      - name: Check CI Status
+        run: |
+          if [[ "${{ needs.lint.result }}" == "success" && \
+                "${{ needs.syntax-check.result }}" == "success" && \
+                "${{ needs.test-docker.result }}" == "success" ]]; then
+            echo "CI_STATUS=success" >> $GITHUB_ENV
+          else
+            echo "CI checks failed"
+            echo "- Lint: ${{ needs.lint.result }}"
+            echo "- Syntax: ${{ needs.syntax-check.result }}"
+            echo "- Docker Tests: ${{ needs.test-docker.result }}"
+            exit 1
+          fi

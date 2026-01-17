@@ -1,0 +1,39 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Check that we can connect to the instance
+      ansible.builtin.ping:
+
+    - name: Verify SSH configuration (UseDNS)
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^UseDNS'
+        line: 'UseDNS no'
+        state: present
+      check_mode: true
+      register: ssh_usedns_check
+
+    - name: Assert SSH configuration was applied
+      ansible.builtin.assert:
+        that:
+          - not ssh_usedns_check.changed
+        fail_msg: "SSH config did not include 'UseDNS no'"
+
+    - name: Check netplan config on Ubuntu
+      ansible.builtin.stat:
+        path: /etc/netplan/00-installer-config.yaml
+      register: netplan_stat
+      when: ansible_distribution == 'Ubuntu'
+
+    - name: Assert netplan config exists on Ubuntu
+      ansible.builtin.assert:
+        that:
+          - netplan_stat.stat.exists
+        fail_msg: "/etc/netplan/00-installer-config.yaml not found on Ubuntu"
+      when: ansible_distribution == 'Ubuntu'
+
+    - name: Success message
+      ansible.builtin.debug:
+        msg: "✅ Molecule verification checks passed"

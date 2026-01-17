@@ -1,0 +1,11 @@
+---
+all:
+  hosts:
+    tart:
+      # Placeholder value. This file is overwritten by the scenario during `molecule create`.
+      ansible_host: 0.0.0.0
+      ansible_user: vagrant
+      ansible_password: vagrant
+      ansible_become: true
+      ansible_become_password: vagrant
+      ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"

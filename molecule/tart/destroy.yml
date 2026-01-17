@@ -1,0 +1,16 @@
+---
+- name: Destroy (Tart)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    tart_vm_name: "{{ lookup('env', 'MOLECULE_TART_VM') | default('debian-template-molecule', true) }}"
+
+  tasks:
+    - name: Stop Tart VM (best effort)
+      ansible.builtin.command: tart stop "{{ tart_vm_name }}"
+      failed_when: false
+
+    - name: Delete Tart VM (best effort)
+      ansible.builtin.command: tart delete "{{ tart_vm_name }}"
+      failed_when: false

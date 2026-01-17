@@ -1,0 +1,19 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    target_vagrant: false
+    target_ovirt: false
+    enable_cloud_init: false
+    local_account_username: root
+
+    # Container safety
+    install_kernel_headers: false
+    zero_free_space: false
+    enable_grow_part: false
+    reset_machine_id: false
+
+  roles:
+    - role: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"

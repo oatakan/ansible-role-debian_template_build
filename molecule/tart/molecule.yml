@@ -1,0 +1,52 @@
+---
+dependency:
+  name: galaxy
+
+driver:
+  name: default
+
+platforms:
+  - name: tart
+
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_ROLES_PATH: ${MOLECULE_PROJECT_DIRECTORY}/..
+  config_options:
+    defaults:
+      interpreter_python: auto_silent
+      stdout_callback: yaml
+  inventory:
+    links:
+      hosts: ${MOLECULE_SCENARIO_DIRECTORY}/state.yml
+    host_vars:
+      tart:
+        # Host/IP is provided by delegated driver state file written during create.yml
+        ansible_user: ${MOLECULE_TART_USER:-vagrant}
+        # Password-based SSH (requires sshpass on the controller)
+        ansible_password: ${MOLECULE_TART_PASSWORD:-vagrant}
+        ansible_become_password: ${MOLECULE_TART_BECOME_PASSWORD:-vagrant}
+        ansible_become: true
+        ansible_ssh_extra_args: ${MOLECULE_TART_SSH_EXTRA_ARGS:-""}
+        ansible_ssh_common_args: ${MOLECULE_TART_SSH_ARGS:-"-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"}
+  playbooks:
+    create: ${MOLECULE_SCENARIO_DIRECTORY}/create.yml
+    destroy: ${MOLECULE_SCENARIO_DIRECTORY}/destroy.yml
+    prepare: ${MOLECULE_SCENARIO_DIRECTORY}/prepare.yml
+    converge: ${MOLECULE_SCENARIO_DIRECTORY}/converge.yml
+    verify: ${MOLECULE_SCENARIO_DIRECTORY}/verify.yml
+
+verifier:
+  name: ansible
+
+scenario:
+  name: tart
+  test_sequence:
+    - destroy
+    - dependency
+    - syntax
+    - create
+    - prepare
+    - converge
+    - verify
+    - destroy

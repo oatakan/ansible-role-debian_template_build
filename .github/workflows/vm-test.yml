@@ -1,0 +1,74 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: VM Integration Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_os:
+        description: 'OS to test'
+        required: true
+        default: 'debian12'
+        type: choice
+        options:
+          - debian12
+          - ubuntu2204
+          - ubuntu2404
+
+  schedule:
+    # Run weekly on Sunday at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+jobs:
+  vm-test:
+    runs-on: [self-hosted, vm-capable]
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ${{ github.event.inputs.test_os || 'debian12' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible molecule molecule-plugins[vagrant]
+
+      - name: Install Ansible collections
+        run: |
+          ansible-galaxy collection install community.general ansible.posix
+
+      - name: Install test role
+        run: |
+          cat <<'EOF' > requirements.yml
+          - src: https://github.com/${{ github.repository }}.git
+            scm: git
+            version: ${{ github.sha }}
+            name: oatakan.debian_template_build
+          EOF
+          ansible-galaxy role install -r requirements.yml -p ${{ github.workspace }}/tests/roles
+          rm requirements.yml
+
+      - name: Run Molecule vagrant tests
+        run: |
+          cd molecule/vagrant
+          molecule test
+        env:
+          ANSIBLE_ROLES_PATH: ${{ github.workspace }}/tests/roles
+          MOLECULE_VAGRANT_BOX: generic/${{ matrix.os }}
+
+      - name: Upload test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: molecule-logs-${{ matrix.os }}
+          path: |
+            molecule/vagrant/.molecule/
+            ~/.cache/molecule/
+          retention-days: 7

@@ -1,0 +1,379 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+---
+name: Automated Release Pipeline
+
+on:
+  # Simple push trigger - but with smart filtering to prevent loops
+  push:
+    branches: [main, master]
+    # Ignore pushes that only affect documentation/release files
+    paths-ignore:
+      - 'CHANGELOG.md'
+      - 'docs/**'
+      - '*.md'
+      - '.github/workflows/post-release-updates.yml'
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday for accumulated changes
+  workflow_dispatch:
+    inputs:
+      force_release:
+        description: 'Force a release even without changes'
+        type: boolean
+        default: false
+
+env:
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+jobs:
+  # Check if we should skip this release cycle
+  check-release-needed:
+    runs-on: ubuntu-latest
+    outputs:
+      should_skip: ${{ steps.check.outputs.should_skip }}
+      skip_reason: ${{ steps.check.outputs.skip_reason }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Get current and previous commit
+
+      - name: Check if release should be skipped
+        id: check
+        run: |
+          # Get the latest commit info
+          COMMIT_AUTHOR=$(git log -1 --pretty=format:"%an")
+          COMMIT_EMAIL=$(git log -1 --pretty=format:"%ae")
+          COMMIT_MSG=$(git log -1 --pretty=format:"%s")
+          
+          echo "Commit author: $COMMIT_AUTHOR"
+          echo "Commit email: $COMMIT_EMAIL"
+          echo "Commit message: $COMMIT_MSG"
+          
+          # Skip if this was made by github-actions bot
+          if [[ "$COMMIT_AUTHOR" == "github-actions[bot]" ]] || [[ "$COMMIT_EMAIL" == *"github-actions"* ]]; then
+            echo "⚠️ Skipping release - commit made by GitHub Actions bot"
+            echo "should_skip=true" >> $GITHUB_OUTPUT
+            echo "skip_reason=bot_commit" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Skip if commit message indicates a release or post-release update
+          if [[ "$COMMIT_MSG" == *"chore: release"* ]] || [[ "$COMMIT_MSG" == *"post-release updates"* ]] || [[ "$COMMIT_MSG" == *"[skip release]"* ]]; then
+            echo "⚠️ Skipping release - commit appears to be release-related"
+            echo "should_skip=true" >> $GITHUB_OUTPUT
+            echo "skip_reason=release_commit" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Check if only documentation files changed
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          echo "Changed files: $CHANGED_FILES"
+          
+          # Count non-documentation changes
+          NON_DOC_CHANGES=$(echo "$CHANGED_FILES" | grep -v -E '\.(md|txt)$|^docs/|^CHANGELOG|^\.github/workflows/post-release' | wc -l)
+          
+          if [[ $NON_DOC_CHANGES -eq 0 ]] && [[ -n "$CHANGED_FILES" ]]; then
+            echo "⚠️ Skipping release - only documentation files changed"
+            echo "should_skip=true" >> $GITHUB_OUTPUT
+            echo "skip_reason=docs_only" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Proceed with release
+          echo "✅ Release should proceed - meaningful code changes detected"
+          echo "should_skip=false" >> $GITHUB_OUTPUT
+          echo "skip_reason=none" >> $GITHUB_OUTPUT
+
+  analyze-changes:
+    runs-on: ubuntu-latest
+    needs: check-release-needed
+    # Only run if we shouldn't skip
+    if: needs.check-release-needed.outputs.should_skip == 'false'
+    outputs:
+      should_release: ${{ steps.analyze.outputs.should_release }}
+      version_bump: ${{ steps.analyze.outputs.version_bump }}
+      new_version: ${{ steps.analyze.outputs.new_version }}
+      analysis_reasoning: ${{ steps.analyze.outputs.analysis_reasoning }}
+      changelog_entry: ${{ steps.analyze.outputs.changelog_entry }}
+      release_notes: ${{ steps.analyze.outputs.release_notes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r .github/scripts/requirements.txt
+
+      - name: Analyze changes with AI
+        id: analyze
+        run: |
+          echo "🤖 Running AI release analysis..."
+          
+          # Run the AI analysis - it sets all outputs directly
+          python .github/scripts/ai_release_analyzer.py
+          
+          echo "✅ AI analysis completed"
+          echo "📊 Outputs set by AI script:"
+          echo "- Check the AI script logs above for analysis details"
+
+      - name: Post analysis summary
+        if: steps.analyze.outputs.should_release == 'true'
+        run: |
+          echo "### 🤖 AI Release Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Strategy:** Branch protection (CI pre-validated on PRs)" >> $GITHUB_STEP_SUMMARY
+          echo "**Loop Prevention:** Passed (no bot commits or docs-only changes)" >> $GITHUB_STEP_SUMMARY
+          echo "**Recommended Version:** ${{ steps.analyze.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version Bump Type:** ${{ steps.analyze.outputs.version_bump }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Reasoning:**" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.analyze.outputs.analysis_reasoning }}" >> $GITHUB_STEP_SUMMARY
+
+  create-release:
+    needs: [check-release-needed, analyze-changes]
+    if: needs.check-release-needed.outputs.should_skip == 'false' && (needs.analyze-changes.outputs.should_release == 'true' || github.event.inputs.force_release == 'true')
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.version.outputs.NEW_TAG }}
+      version: ${{ steps.version.outputs.NEW_VERSION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Debug job inputs
+        run: |
+          echo "🔍 Debugging outputs from AI analysis..."
+          echo ""
+          echo "All outputs set directly by ai_release_analyzer.py:"
+          echo "- should_release: '${{ needs.analyze-changes.outputs.should_release }}'"
+          echo "- version_bump: '${{ needs.analyze-changes.outputs.version_bump }}'"
+          echo "- new_version: '${{ needs.analyze-changes.outputs.new_version }}'"
+          echo "- analysis_reasoning: '${{ needs.analyze-changes.outputs.analysis_reasoning }}'"
+          echo "- changelog_entry: '${{ needs.analyze-changes.outputs.changelog_entry }}'"
+          echo "- release_notes: present (multiline)"
+          echo ""
+          
+          # Validate critical outputs
+          if [ -z "${{ needs.analyze-changes.outputs.new_version }}" ]; then
+            echo "❌ CRITICAL: new_version is empty!"
+            echo "🔧 FIX: AI script needs to set new_version output"
+            exit 1
+          else
+            echo "✅ new_version received: ${{ needs.analyze-changes.outputs.new_version }}"
+          fi
+          
+          if [ -z "${{ needs.analyze-changes.outputs.version_bump }}" ]; then
+            echo "❌ CRITICAL: version_bump is empty!"
+            exit 1
+          else
+            echo "✅ version_bump received: ${{ needs.analyze-changes.outputs.version_bump }}"
+          fi
+
+      - name: Set version from AI analysis
+        id: version
+        run: |
+          # Use AI analysis results directly - no calculation needed
+          AI_NEW_VERSION="${{ needs.analyze-changes.outputs.new_version }}"
+          AI_VERSION_BUMP="${{ needs.analyze-changes.outputs.version_bump }}"
+          
+          echo "🤖 Using AI-determined version directly:"
+          echo "- New Version: $AI_NEW_VERSION"
+          echo "- Version Bump: $AI_VERSION_BUMP"
+          
+          # Simple validation
+          if [[ ! "$AI_NEW_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ ERROR: Invalid version format: $AI_NEW_VERSION"
+            echo "Expected format: v1.2.3"
+            exit 1
+          fi
+          
+          # Set outputs for use in subsequent steps
+          NEW_VERSION=${AI_NEW_VERSION#v}  # Remove 'v' prefix for display
+          NEW_TAG="$AI_NEW_VERSION"       # Keep 'v' prefix for git tag
+          
+          echo "🏷️ Final version: $NEW_VERSION"
+          echo "🏷️ Final tag: $NEW_TAG"
+          
+          # Verify tag doesn't already exist
+          if git tag -l | grep -q "^${NEW_TAG}$"; then
+            echo "❌ Tag $NEW_TAG already exists!"
+            echo "🔍 Existing tags:"
+            git tag -l | sort -V | tail -5
+            echo ""
+            echo "🤖 AI suggested: $AI_NEW_VERSION"
+            echo "This suggests the AI analysis has an issue."
+            exit 1
+          fi
+          
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "NEW_TAG=$NEW_TAG" >> $GITHUB_OUTPUT
+          echo "VERSION_BUMP=$AI_VERSION_BUMP" >> $GITHUB_OUTPUT
+
+      # Don't commit changes to master - just create the tag and release
+      - name: Create and push tag (using AI version)
+        env:
+          AI_CHANGELOG: ${{ needs.analyze-changes.outputs.changelog_entry }}
+        run: |
+          # Configure git user for tag creation
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          NEW_TAG="${{ steps.version.outputs.NEW_TAG }}"
+          NEW_VERSION="${{ steps.version.outputs.NEW_VERSION }}"
+          
+          echo "🏷️ Creating tag: $NEW_TAG"
+          echo "📦 Version: $NEW_VERSION"
+          echo "🤖 AI suggested: ${{ needs.analyze-changes.outputs.new_version }}"
+          echo "📊 Version bump: ${{ needs.analyze-changes.outputs.version_bump }}"
+          
+          # Verify this is the correct version
+          if [ "$NEW_TAG" != "${{ needs.analyze-changes.outputs.new_version }}" ]; then
+            echo "⚠️ WARNING: Tag ($NEW_TAG) doesn't match AI suggestion (${{ needs.analyze-changes.outputs.new_version }})"
+          fi
+          
+          # Double-check tag doesn't exist
+          if git tag -l | grep -q "^${NEW_TAG}$"; then
+            echo "❌ ERROR: Tag $NEW_TAG already exists!"
+            echo "🔍 Current tags:"
+            git tag -l | sort -V
+            echo ""
+            echo "🤖 AI suggested version: ${{ needs.analyze-changes.outputs.new_version }}"
+            echo "📊 Version bump type: ${{ needs.analyze-changes.outputs.version_bump }}"
+            echo "🔧 Calculated tag: $NEW_TAG"
+            echo ""
+            echo "This indicates a logic error in version calculation."
+            exit 1
+          fi
+          
+          # Create the tag with release notes
+          printf 'Release %s\n\n%s\n' "$NEW_TAG" "$AI_CHANGELOG" > tag_message.txt
+          git tag -a "$NEW_TAG" -F tag_message.txt
+          rm -f tag_message.txt
+          git push origin "$NEW_TAG"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s\n' "${{ needs.analyze-changes.outputs.release_notes }}" > release_notes.md
+          echo "🚀 Creating GitHub release with AI-generated notes..."
+          gh release create ${{ steps.version.outputs.NEW_TAG }} \
+            --title "Release ${{ steps.version.outputs.NEW_TAG }}" \
+            --notes-file release_notes.md
+          echo "✅ Release created successfully"
+
+  deploy-galaxy:
+    needs: [check-release-needed, analyze-changes, create-release]
+    if: needs.check-release-needed.outputs.should_skip == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.create-release.outputs.tag_name }}
+
+      - name: Install ansible-core
+        run: |
+          pip install ansible-core
+
+      - name: Import to Ansible Galaxy
+        env:
+          ANSIBLE_GALAXY_API_KEY: ${{ secrets.ANSIBLE_GALAXY_API_KEY }}
+        run: |
+          # Import using GitHub repository owner + repo name
+          # Repository: ${{ github.repository }}
+          OWNER="${{ github.repository_owner }}"
+          REPO_ONLY="${{ github.repository }}"
+          REPO_ONLY="${REPO_ONLY#*/}"
+
+          ansible-galaxy role import \
+            --api-key="${ANSIBLE_GALAXY_API_KEY}" \
+            "$OWNER" "$REPO_ONLY"
+
+      - name: Verify Galaxy import
+        run: |
+          sleep 30  # Wait for Galaxy to process
+          ansible-galaxy role info ${{ github.repository_owner }}.debian_template_build
+
+  notify:
+    needs: [check-release-needed, analyze-changes, create-release, deploy-galaxy]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug workflow results
+        run: |
+          echo "### 🔍 Workflow Debug Information" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| check-release-needed | ${{ needs.check-release-needed.result }} | should_skip: ${{ needs.check-release-needed.outputs.should_skip }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| analyze-changes | ${{ needs.analyze-changes.result }} | should_release: ${{ needs.analyze-changes.outputs.should_release }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| create-release | ${{ needs.create-release.result }} | - |" >> $GITHUB_STEP_SUMMARY
+          echo "| deploy-galaxy | ${{ needs.deploy-galaxy.result }} | - |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Send notification
+        run: |
+          if [[ "${{ needs.check-release-needed.outputs.should_skip }}" == "true" ]]; then
+            echo "### ⏭️ Release Skipped" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            case "${{ needs.check-release-needed.outputs.skip_reason }}" in
+              "bot_commit")
+                echo "**Reason:** Commit made by GitHub Actions bot (prevents infinite loops)" >> $GITHUB_STEP_SUMMARY
+                ;;
+              "release_commit")
+                echo "**Reason:** Commit appears to be release-related" >> $GITHUB_STEP_SUMMARY
+                ;;
+              "docs_only")
+                echo "**Reason:** Only documentation files were changed" >> $GITHUB_STEP_SUMMARY
+                ;;
+              *)
+                echo "**Reason:** ${{ needs.check-release-needed.outputs.skip_reason }}" >> $GITHUB_STEP_SUMMARY
+                ;;
+            esac
+          elif [[ "${{ needs.analyze-changes.outputs.should_release }}" != "true" ]]; then
+            echo "### 📊 Release Analysis: No Release Needed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**AI Analysis Result:** ${{ needs.analyze-changes.outputs.analysis_reasoning }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Recommended Action:** No version bump required" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.create-release.result }}" == "success" && "${{ needs.deploy-galaxy.result }}" == "success" ]]; then
+            echo "### ✅ Release Successfully Deployed!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "🎉 **New version deployed to Ansible Galaxy**" >> $GITHUB_STEP_SUMMARY
+            echo "📦 **Version:** ${{ needs.analyze-changes.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+            echo "⏱️ **Completion Time:** $(( $(date +%s) - $(date -d '${{ github.event.head_commit.timestamp }}' +%s) )) seconds from push" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.create-release.result }}" == "skipped" ]]; then
+            echo "### ⚠️ Release Jobs Skipped" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Analysis Says Release:** ${{ needs.analyze-changes.outputs.should_release }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Should Skip:** ${{ needs.check-release-needed.outputs.should_skip }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Likely Issue:** Conditional logic problem in workflow" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Debug Info:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Check the workflow conditional statements" >> $GITHUB_STEP_SUMMARY
+            echo "- Verify AI script outputs are being set correctly" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ Release Process Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Failed Job:** " >> $GITHUB_STEP_SUMMARY
+            if [[ "${{ needs.create-release.result }}" == "failure" ]]; then
+              echo "- create-release (check release creation logs)" >> $GITHUB_STEP_SUMMARY
+            fi
+            if [[ "${{ needs.deploy-galaxy.result }}" == "failure" ]]; then
+              echo "- deploy-galaxy (check Galaxy deployment logs)" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Check the individual job logs for detailed error information.**" >> $GITHUB_STEP_SUMMARY
+          fi

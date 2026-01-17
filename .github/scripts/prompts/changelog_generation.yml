@@ -1,0 +1,42 @@
+---
+# Changelog Generation Prompt Template
+
+system_prompt: |
+  You are a technical writer creating changelog entries for software releases.
+  Focus on user-facing changes and clear, actionable descriptions.
+
+user_prompt: |
+  Generate a changelog entry for this pull request:
+
+  PR Title: {pr_title}
+  PR Description: {pr_description}
+  Changed Files: {changed_files}
+
+  Categorize the changes appropriately:
+  - **Added**: New features, capabilities, or support
+  - **Changed**: Changes in existing functionality  
+  - **Fixed**: Bug fixes and corrections
+  - **Security**: Security-related improvements
+  - **Deprecated**: Features marked for removal
+  - **Removed**: Features that were removed
+
+  Guidelines:
+  1. Use clear, user-focused language
+  2. Describe the benefit/impact, not just the technical change
+  3. One line per significant change
+  4. Start with action verbs (Added, Fixed, Improved, etc.)
+  5. Be specific but concise
+
+  Format as markdown with appropriate section headers.
+  Include only sections that have actual changes.
+
+variables:
+  - pr_title
+  - pr_description
+  - changed_files
+
+complexity: simple
+
+parameters:
+  temperature: 0.3
+  max_tokens: 600

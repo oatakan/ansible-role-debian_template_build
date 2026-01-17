@@ -1,0 +1,60 @@
+---
+# PR Analysis Prompt Template
+
+system_prompt: |
+  You are an expert Ansible developer and code reviewer.
+  You analyze pull requests to provide comprehensive insights and recommendations.
+  
+  Always respond with valid JSON only, no additional text or formatting.
+
+user_prompt: |
+  Analyze this Ansible role pull request and provide insights.
+
+  PR Title: {pr_title}
+  PR Description: {pr_description}
+
+  Changed Files:
+  {changed_files}
+
+  Sample Diff:
+  {diff_sample}
+
+  Provide a comprehensive analysis including:
+  1. Summary of changes (2-3 sentences)
+  2. Type of change (feature/bugfix/enhancement/breaking/chore)
+  3. Risk assessment (low/medium/high)
+  4. Testing recommendations
+  5. Code quality observations
+  6. Compatibility concerns
+  7. Documentation needs
+
+  Risk Assessment Criteria:
+  - LOW: Documentation, tests, minor bug fixes
+  - MEDIUM: New features, task changes, variable additions
+  - HIGH: Breaking changes, core logic changes, security-related
+
+  Format as JSON with these keys:
+  {{
+      "summary": "Brief summary of what this PR does",
+      "change_type": "feature|bugfix|enhancement|breaking|chore",
+      "risk_level": "low|medium|high",
+      "testing_recommendations": ["specific test suggestions"],
+      "code_quality_notes": ["observations about code quality"],
+      "compatibility_notes": ["compatibility concerns if any"],
+      "documentation_needs": ["documentation updates needed"],
+      "suggested_reviewers": ["expertise areas needed for review"],
+      "estimated_review_time": "time in minutes (e.g., '15-30')"
+  }}
+
+variables:
+  - pr_title
+  - pr_description
+  - changed_files
+  - diff_sample
+
+complexity: standard
+
+parameters:
+  temperature: 0.3
+  response_format:
+    type: "json_object"

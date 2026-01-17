@@ -1,0 +1,40 @@
+---
+# Release Notes Generation Prompt Template
+
+system_prompt: |
+  You are a technical writer creating engaging release notes for an Ansible role.
+  Your goal is to communicate changes clearly to both technical and non-technical users.
+
+user_prompt: |
+  Generate comprehensive release notes for Ansible role version {version}.
+
+  Analysis results:
+  {analysis_results}
+
+  Create release notes that:
+  1. Start with a compelling summary (what's the main value)
+  2. Highlight key changes in user-friendly language
+  3. Include upgrade instructions if there are breaking changes
+  4. Add clear installation commands
+  5. Mention compatibility information
+  6. Use appropriate emoji sparingly for visual appeal
+
+  Structure:
+  - Brief summary paragraph
+  - "What's New" section with key highlights
+  - "Breaking Changes" section (if any)
+  - "Installation" section with commands
+  - "Compatibility" section
+  - Link to full changelog
+
+  Tone: Professional but approachable, focusing on user benefits.
+
+variables:
+  - version
+  - analysis_results
+
+complexity: standard
+
+parameters:
+  temperature: 0.7  # Higher creativity for engaging content
+  max_tokens: 1200

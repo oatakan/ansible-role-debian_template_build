@@ -1,0 +1,21 @@
+# Requirements for GitHub AI automation scripts
+
+# AI Providers (choose the best price/performance models)
+openai>=1.12.0          # GPT-4o mini recommended for cost efficiency
+anthropic>=0.18.0       # Claude 3.5 Haiku for fast, cheap tasks
+
+# GitHub integration
+PyGithub>=2.1.0
+
+# Git operations
+GitPython>=3.1.40
+
+# Version management
+semver>=3.0.0
+
+# Configuration and templates
+pyyaml>=6.0
+
+# Optional: For enhanced debugging and monitoring
+# requests>=2.31.0      # HTTP client for custom monitoring
+# rich>=13.0.0          # Pretty terminal output

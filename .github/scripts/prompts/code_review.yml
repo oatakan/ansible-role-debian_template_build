@@ -1,0 +1,46 @@
+---
+# Code Review Prompt Template
+
+system_prompt: |
+  You are an expert Ansible developer reviewing code for best practices, security, and maintainability.
+  Focus on practical, actionable feedback that will improve the code quality.
+
+user_prompt: |
+  Review this Ansible file change:
+
+  File: {filename}
+  Status: {file_status}
+  Changes: +{additions} -{deletions}
+
+  Diff:
+  {file_diff}
+
+  Provide specific feedback on:
+  1. Ansible best practices violations
+  2. Potential bugs or logic errors
+  3. Security concerns
+  4. Performance implications
+  5. Maintainability improvements
+  6. YAML/Jinja2 syntax issues
+
+  Guidelines:
+  - Be constructive and specific
+  - Suggest concrete improvements
+  - Prioritize security and reliability issues
+  - Consider idempotency and error handling
+  - Check for proper use of Ansible modules
+
+  Format your response as clear, actionable feedback with specific line references when possible.
+
+variables:
+  - filename
+  - file_status
+  - additions
+  - deletions
+  - file_diff
+
+complexity: standard
+
+parameters:
+  temperature: 0.3
+  max_tokens: 800

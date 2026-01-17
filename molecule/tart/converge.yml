@@ -1,0 +1,21 @@
+---
+- name: Converge (Tart)
+  hosts: tart
+  become: true
+  gather_facts: true
+  vars:
+    target_vagrant: false
+    target_ovirt: false
+    target_tart: true
+    enable_cloud_init: false
+
+    tart_guest_agent_install_method: "{{ lookup('env', 'MOLECULE_TART_AGENT_METHOD') | default('auto', true) }}"
+
+    # For Tart-based Molecule runs we keep this fast (Tart VMs are ephemeral anyway)
+    zero_free_space: false
+
+    # Use the SSH user (usually vagrant) as the "local account" for SSH config tasks
+    local_account_username: "{{ lookup('env', 'MOLECULE_TART_USER') | default('vagrant', true) }}"
+
+  roles:
+    - role: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"

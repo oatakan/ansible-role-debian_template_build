@@ -1,0 +1,8 @@
+---
+- name: Cleanup
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: No-op cleanup
+      ansible.builtin.debug:
+        msg: "Cleanup step (no-op)"

@@ -1,0 +1,28 @@
+---
+- name: Verify (Tart)
+  hosts: tart
+  gather_facts: true
+  tasks:
+    - name: Check that we can connect
+      ansible.builtin.ping:
+
+    - name: Read sshd_config
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: sshd_config
+
+    - name: Assert SSH hardening lines are present
+      ansible.builtin.assert:
+        that:
+          - "'UseDNS no' in (sshd_config.content | b64decode)"
+          - "'GSSAPIAuthentication no' in (sshd_config.content | b64decode)"
+
+    - name: Check generate-ssh-host-key service file exists
+      ansible.builtin.stat:
+        path: /etc/systemd/system/generate-ssh-host-key.service
+      register: ssh_key_service
+
+    - name: Assert service file exists
+      ansible.builtin.assert:
+        that:
+          - ssh_key_service.stat.exists

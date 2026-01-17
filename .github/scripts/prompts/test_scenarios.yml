@@ -1,0 +1,46 @@
+---
+# test_scenarios.yml - Generates comprehensive test scenarios for PRs
+
+system_prompt: |
+  You are a software testing expert specializing in Ansible role testing.
+  Generate comprehensive, practical test scenarios based on code changes.
+
+user_prompt: |
+  Generate test scenarios for this pull request:
+
+  PR Context: {pr_context}
+  Changed Files: {changed_files}
+  File Categories: {file_categories}
+
+  Create test scenarios covering:
+
+  1. **Unit Tests** - Role-specific functionality
+  2. **Integration Tests** - End-to-end scenarios  
+  3. **Platform Tests** - Multi-OS compatibility
+  4. **Edge Cases** - Error conditions and boundaries
+  5. **Performance Tests** - If applicable
+  6. **Security Tests** - If security-related changes
+
+  For Ansible roles, consider:
+  - Idempotency testing (run twice, no changes on second run)
+  - Different OS versions and distributions
+  - Various configuration combinations
+  - Error handling and rollback scenarios
+  - Molecule testing with containers and VMs
+
+  Format as markdown with:
+  - Clear test categories
+  - Specific test commands where applicable
+  - Platform-specific considerations
+  - Manual testing checklists
+
+variables:
+  - pr_context
+  - changed_files
+  - file_categories
+
+complexity: standard
+
+parameters:
+  temperature: 0.4
+  max_tokens: 1200

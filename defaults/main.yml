@@ -1,9 +1,52 @@
 ---
 target_vagrant: false
 target_ovirt: false
+# Install guest agent suitable for Tart-built images
+target_tart: false
 enable_cloud_init: false
 
+# ---
+# Container/test safety toggles
+#
+# The role is primarily intended for VM template preparation. Some steps don't
+# make sense in container-based tests (e.g., installing kernel headers for the
+# host kernel, or filling disk with zeros). These toggles allow Molecule/CI to
+# disable them.
+install_kernel_headers: true
+zero_free_space: true
+configure_netplan: true
+enable_grow_part: true
+reset_machine_id: true
+
+# Some -dev packages can be unsafe to remove (e.g., may attempt to remove
+# systemd inside minimal/container images). Keep a small denylist.
+skip_dev_packages:
+  - systemd-dev
+  - libsystemd-dev
+
 local_account_username: ansible
+
+# Tart guest agent installation mode:
+# - repo: install from OS repositories (default: qemu-guest-agent)
+# - github: download CirrusLabs tart-guest-agent release artifact (.deb)
+# - auto: try github then fall back to repo
+#
+# Note: github mode requires outbound HTTPS access.
+tart_guest_agent_install_method: repo
+
+# Repo-based defaults (works on Debian-family)
+tart_guest_agent_package_name: qemu-guest-agent
+tart_guest_agent_service_name: qemu-guest-agent
+
+# GitHub-based defaults (CirrusLabs tart-guest-agent)
+tart_guest_agent_github_repo: cirruslabs/tart-guest-agent
+# 'latest' or a tag like 'vX.Y.Z'
+tart_guest_agent_github_release: latest
+# If your environment blocks GitHub API, you can set this to a precomputed base URL
+# (without .deb suffix), e.g. https://github.com/.../download/vX.Y.Z/tart-guest-agent_...
+tart_guest_agent_base_url_override: ''
+# If you're using github method, the service name is expected to match the binary package.
+tart_guest_agent_github_service_name: tart-guest-agent
 
 ovirt_guest_agent_service_name: qemu-guest-agent
 qemu_guest_agent_service_name: qemu-guest-agent

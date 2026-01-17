@@ -1,0 +1,18 @@
+# macOS
+.DS_Store
+
+# IDEs
+.idea/
+.vscode/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Molecule
+.molecule/
+.cache/
+
+# Ansible
+*.retry

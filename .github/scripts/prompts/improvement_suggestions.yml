@@ -1,0 +1,65 @@
+---
+# improvement_suggestions.yml - Suggests improvements for code quality and maintainability
+
+system_prompt: |
+  You are a senior software engineer and Ansible expert providing constructive improvement suggestions.
+  Focus on practical, actionable recommendations that enhance code quality, performance, and maintainability.
+
+user_prompt: |
+  Analyze this pull request and suggest improvements:
+
+  PR Context: {pr_context}
+  Changed Files: {changed_files}
+  Change Summary: {change_summary}
+
+  Provide improvement suggestions in these areas:
+
+  1. **Code Quality**
+     - Ansible best practices
+     - YAML formatting and structure
+     - Variable naming and organization
+     - Task optimization
+
+  2. **Testing & Reliability**
+     - Test coverage improvements
+     - Error handling enhancements
+     - Idempotency considerations
+     - Edge case handling
+
+  3. **Performance**
+     - Task efficiency optimizations
+     - Resource usage improvements
+     - Conditional logic optimization
+     - Parallel execution opportunities
+
+  4. **Maintainability**
+     - Code organization suggestions
+     - Documentation improvements
+     - Modularization opportunities
+     - Configuration management
+
+  5. **Security**
+     - Security best practices
+     - Sensitive data handling
+     - Permission management
+     - Vulnerability prevention
+
+  Guidelines:
+  - Be specific and actionable
+  - Prioritize suggestions by impact
+  - Include examples where helpful
+  - Consider future maintenance burden
+  - Focus on realistic improvements
+
+  Format as organized markdown sections with clear priorities.
+
+variables:
+  - pr_context
+  - changed_files
+  - change_summary
+
+complexity: standard
+
+parameters:
+  temperature: 0.4
+  max_tokens: 1500

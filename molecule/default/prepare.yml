@@ -1,0 +1,17 @@
+---
+- name: Prepare
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Wait for connection
+      ansible.builtin.wait_for_connection:
+        timeout: 120
+        sleep: 5
+        delay: 5
+
+    - name: Test basic connectivity
+      ansible.builtin.ping:
+
+    - name: Container ready
+      ansible.builtin.debug:
+        msg: "Container is ready for testing"

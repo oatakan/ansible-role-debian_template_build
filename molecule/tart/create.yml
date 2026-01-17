@@ -1,0 +1,100 @@
+---
+- name: Create (Tart)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    tart_vm_name: "{{ lookup('env', 'MOLECULE_TART_VM') | default('debian-template-molecule', true) }}"
+    tart_source_vm: "{{ lookup('env', 'MOLECULE_TART_SOURCE_VM') | default('', true) }}"
+    tart_import_tvm: "{{ lookup('env', 'MOLECULE_TART_IMPORT_TVM') | default('', true) }}"
+    tart_user: "{{ lookup('env', 'MOLECULE_TART_USER') | default('vagrant', true) }}"
+    tart_password: "{{ lookup('env', 'MOLECULE_TART_PASSWORD') | default('vagrant', true) }}"
+    tart_ssh_args: "{{ lookup('env', 'MOLECULE_TART_SSH_ARGS') | default('-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null', true) }}"
+    tart_become_password: "{{ lookup('env', 'MOLECULE_TART_BECOME_PASSWORD') | default(tart_password, true) }}"
+    inventory_state_file: "{{ lookup('env', 'MOLECULE_SCENARIO_DIRECTORY') }}/state.yml"
+
+  tasks:
+    - name: Ensure tart CLI is available
+      ansible.builtin.command: tart --version
+      changed_when: false
+
+    - name: Create/refresh Tart VM (clone)
+      when:
+        - tart_source_vm | length > 0
+      block:
+        - name: Delete existing VM (if any)
+          ansible.builtin.command: tart delete "{{ tart_vm_name }}"
+          register: tart_delete
+          changed_when: tart_delete.rc == 0
+          failed_when: false
+
+        - name: Clone source VM to molecule VM
+          ansible.builtin.command: tart clone "{{ tart_source_vm }}" "{{ tart_vm_name }}"
+
+    - name: Create/refresh Tart VM (import)
+      when:
+        - tart_source_vm | length == 0
+        - tart_import_tvm | length > 0
+      block:
+        - name: Delete existing VM (if any)
+          ansible.builtin.command: tart delete "{{ tart_vm_name }}"
+          register: tart_delete
+          changed_when: tart_delete.rc == 0
+          failed_when: false
+
+        - name: Import tvm as molecule VM
+          ansible.builtin.command: tart import "{{ tart_import_tvm }}" "{{ tart_vm_name }}"
+
+    - name: Fail if neither clone nor import source is provided
+      ansible.builtin.fail:
+        msg: |
+          Provide one of:
+          - MOLECULE_TART_SOURCE_VM=<existing tart VM name to clone>
+          - MOLECULE_TART_IMPORT_TVM=<path to .tvm to import>
+      when:
+        - tart_source_vm | length == 0
+        - tart_import_tvm | length == 0
+
+    - name: Start Tart VM in background
+      ansible.builtin.command: tart run "{{ tart_vm_name }}" --no-graphics
+      async: 3600
+      poll: 0
+
+    - name: Wait for Tart VM IP
+      ansible.builtin.shell: |
+        set -euo pipefail
+        for i in $(seq 1 90); do
+          ip=$(tart ip "{{ tart_vm_name }}" 2>/dev/null || true)
+          if [ -n "$ip" ]; then
+            echo "$ip"
+            exit 0
+          fi
+          sleep 2
+        done
+        exit 1
+      args:
+        executable: /bin/zsh
+      register: tart_ip
+      changed_when: false
+
+    - name: Wait for SSH to become reachable
+      ansible.builtin.wait_for:
+        host: "{{ tart_ip.stdout }}"
+        port: 22
+        timeout: 180
+
+    - name: Write delegated inventory for Molecule
+      ansible.builtin.copy:
+        dest: "{{ inventory_state_file }}"
+        mode: '0600'
+        content: |
+          ---
+          all:
+            hosts:
+              tart:
+                ansible_host: {{ tart_ip.stdout }}
+                ansible_user: {{ tart_user }}
+                ansible_password: {{ tart_password }}
+                ansible_become: true
+                ansible_become_password: {{ tart_become_password }}
+                ansible_ssh_common_args: "{{ tart_ssh_args }}"

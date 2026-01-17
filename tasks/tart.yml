@@ -1,0 +1,135 @@
+---
+
+# Tart uses Apple's Virtualization.framework and boots Linux with virtio devices.
+# For Debian-family, we support two installation methods:
+# - repo: install qemu-guest-agent from distro repos (default)
+# - github: download CirrusLabs tart-guest-agent .deb from GitHub releases
+# - auto: try github first, then fall back to repo
+
+- name: Normalize architecture name reported by Ansible to be Golang-like
+  ansible.builtin.set_fact:
+    golang_architecture: "{{ mapping.get(ansible_architecture, ansible_architecture) }}"
+  vars:
+    mapping:
+      x86_64: amd64
+      aarch64: arm64
+
+- name: Decide whether to use GitHub install path
+  ansible.builtin.set_fact:
+    tart_use_github_install: "{{ tart_guest_agent_install_method in ['github', 'auto'] }}"
+
+- name: Retrieve latest release metadata for Guest agent for Tart VMs
+  ansible.builtin.uri:
+    url: >-
+      https://api.github.com/repos/{{ tart_guest_agent_github_repo }}/releases/{{
+        'latest' if tart_guest_agent_github_release == 'latest'
+        else ('tags/' ~ tart_guest_agent_github_release)
+      }}
+    return_content: true
+    headers:
+      Accept: application/vnd.github+json
+      User-Agent: ansible
+  register: tart_latest_release
+  when:
+    - tart_use_github_install
+    - tart_guest_agent_base_url_override | length == 0
+  failed_when: false
+
+- name: Figure out Guest agent for Tart VMs deb download URL
+  ansible.builtin.set_fact:
+    tart_guest_agent_deb_url: >-
+      {{
+        (
+          (tart_latest_release.json.assets | default([]))
+          | selectattr('name', 'search', '^tart-guest-agent_.*_linux_' ~ golang_architecture ~ '\\.(deb)$')
+          | map(attribute='browser_download_url')
+          | first
+          | default('')
+        )
+      }}
+  when:
+    - tart_use_github_install
+    - tart_guest_agent_base_url_override | length == 0
+    - (tart_latest_release.status | default(0)) == 200
+
+- name: Fail when GitHub install is requested but no deb URL is available
+  ansible.builtin.fail:
+    msg: |
+      tart_guest_agent_install_method is set to 'github' but the GitHub release asset could not be determined.
+
+      - GitHub API status: {{ tart_latest_release.status | default('unknown') }}
+      - Tip: set tart_guest_agent_base_url_override to a known release asset base URL (without the .deb suffix)
+  when:
+    - tart_guest_agent_install_method == 'github'
+    - (tart_guest_agent_deb_url | default('')) | length == 0
+
+- name: Use overridden Tart guest agent base URL when provided
+  ansible.builtin.set_fact:
+    tart_guest_agent_deb_url: >-
+      {{
+        tart_guest_agent_base_url_override
+        if (tart_guest_agent_base_url_override | regex_search('\\.deb$'))
+        else (tart_guest_agent_base_url_override ~ '.deb')
+      }}
+  when:
+    - tart_use_github_install
+    - tart_guest_agent_base_url_override | length > 0
+
+- name: Download Tart guest agent deb (GitHub-based)
+  ansible.builtin.get_url:
+    url: "{{ tart_guest_agent_deb_url }}"
+    dest: "/tmp/tart-guest-agent_{{ golang_architecture }}.deb"
+    mode: '0644'
+  register: tart_agent_github_deb
+  when:
+    - tart_use_github_install
+    - ansible_os_family == 'Debian'
+    - tart_guest_agent_deb_url | length > 0
+  failed_when: false
+
+- name: Install Guest agent for Tart VMs from downloaded deb (Debian-based)
+  ansible.builtin.apt:
+    deb: "{{ tart_agent_github_deb.dest }}"
+    state: present
+  register: tart_agent_github_install
+  when:
+    - tart_agent_github_deb is defined
+    - not (tart_agent_github_deb.skipped | default(false))
+    - tart_agent_github_deb.dest is defined
+  failed_when: false
+
+- name: Set Tart guest agent package/service names (repo-based)
+  ansible.builtin.set_fact:
+    tart_guest_agent_package: "{{ tart_guest_agent_package_name }}"
+    tart_guest_agent_service: "{{ tart_guest_agent_service_name }}"
+  when:
+    - tart_agent_github_install is not defined or (tart_agent_github_install is failed) or (tart_agent_github_install is skipped)
+
+- name: Set Tart guest agent service name (github-based)
+  ansible.builtin.set_fact:
+    tart_guest_agent_package: tart-guest-agent
+    tart_guest_agent_service: "{{ tart_guest_agent_github_service_name }}"
+  when:
+    - tart_agent_github_install is defined
+    - tart_agent_github_install is succeeded
+    - tart_agent_github_install is not skipped
+
+- name: Ensure Tart guest agent package is installed (repo fallback)
+  ansible.builtin.package:
+    name: "{{ tart_guest_agent_package }}"
+    state: present
+  register: tart_agent_package_installation
+  when:
+    - tart_agent_github_install is not defined or (tart_agent_github_install is failed) or (tart_agent_github_install is skipped)
+
+- name: Ensure Tart guest agent service is enabled
+  ansible.builtin.service:
+    name: "{{ tart_guest_agent_service }}"
+    enabled: true
+  failed_when: false
+
+- name: Ensure Tart guest agent service is started (best effort)
+  ansible.builtin.service:
+    name: "{{ tart_guest_agent_service }}"
+    state: started
+  failed_when: false

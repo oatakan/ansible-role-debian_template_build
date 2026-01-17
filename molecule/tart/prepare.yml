@@ -1,0 +1,39 @@
+---
+- name: Prepare (Tart)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    inventory_state_file: "{{ lookup('env', 'MOLECULE_SCENARIO_DIRECTORY') }}/state.yml"
+    tart_user: "{{ lookup('env', 'MOLECULE_TART_USER') | default('vagrant', true) }}"
+    tart_password: "{{ lookup('env', 'MOLECULE_TART_PASSWORD') | default('vagrant', true) }}"
+    tart_ssh_args: "{{ lookup('env', 'MOLECULE_TART_SSH_ARGS') | default('-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null', true) }}"
+
+  tasks:
+    - name: Ensure sshpass is available (required for password-based SSH)
+      ansible.builtin.command: sshpass -V
+      changed_when: false
+
+    - name: Read instance_config to get VM address
+      ansible.builtin.slurp:
+        src: "{{ inventory_state_file }}"
+      register: state_content
+
+    - name: Extract address from inventory state file
+      ansible.builtin.set_fact:
+        tart_target_host: "{{ (state_content.content | b64decode | from_yaml).all.hosts.tart.ansible_host }}"
+
+    - name: Sanity check SSH login
+      ansible.builtin.command: >-
+        sshpass -p "{{ tart_password }}"
+        ssh {{ tart_ssh_args }}
+        -o PreferredAuthentications=password
+        -o PubkeyAuthentication=no
+        {{ tart_user }}@{{ tart_target_host }}
+        "whoami && id"
+      register: ssh_login_check
+      changed_when: false
+
+    - name: Show SSH login check output
+      ansible.builtin.debug:
+        var: ssh_login_check.stdout

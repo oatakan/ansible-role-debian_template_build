@@ -2,7 +2,6 @@
 all:
   hosts:
     tart:
-      # Placeholder value. This file is overwritten by the scenario during `molecule create`.
       ansible_host: 0.0.0.0
       ansible_user: vagrant
       ansible_password: vagrant

@@ -266,10 +266,20 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_NOTES: ${{ needs.analyze-changes.outputs.release_notes }}
         run: |
-          printf '%s\n' "${{ needs.analyze-changes.outputs.release_notes }}" > release_notes.md
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          notes = os.environ.get('RELEASE_NOTES', '')
+          # Ensure a trailing newline for markdown rendering consistency.
+          if notes and not notes.endswith('\n'):
+            notes += '\n'
+          Path('release_notes.md').write_text(notes, encoding='utf-8')
+          PY
           echo "🚀 Creating GitHub release with AI-generated notes..."
-          gh release create ${{ steps.version.outputs.NEW_TAG }} \
+          gh release create "${{ steps.version.outputs.NEW_TAG }}" \
             --title "Release ${{ steps.version.outputs.NEW_TAG }}" \
             --notes-file release_notes.md
           echo "✅ Release created successfully"

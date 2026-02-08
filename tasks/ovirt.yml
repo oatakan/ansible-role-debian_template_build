@@ -1,8 +1,32 @@
 ---
 
-- name: ensure ovirt guest agent package is installed
+- name: ensure apt cache is updated (pre ovirt guest agent)
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 0
+    force_apt_get: true
+    update_cache_retries: 10
+    update_cache_retry_max_delay: 12
+  when: ansible_pkg_mgr == 'apt'
+
+- name: ensure ovirt guest agent package is installed (apt)
+  ansible.builtin.apt:
+    name: "{{ ovirt_guest_agent_package_name }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 0
+    force_apt_get: true
+  register: ovirt_guest_agent_install
+  retries: 3
+  delay: 10
+  until: ovirt_guest_agent_install is succeeded
+  when: ansible_pkg_mgr == 'apt'
+
+- name: ensure ovirt guest agent package is installed (non-apt)
   ansible.builtin.package:
     name: "{{ ovirt_guest_agent_package_name }}"
+    state: present
+  when: ansible_pkg_mgr != 'apt'
 
 - name: ensure ovirt guest agent is enabled
   ansible.builtin.service:

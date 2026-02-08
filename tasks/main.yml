@@ -28,7 +28,9 @@
       ansible.builtin.apt:
         update_cache: true
         force_apt_get: true
-        cache_valid_time: 3600
+        cache_valid_time: 0
+        update_cache_retries: 10
+        update_cache_retry_max_delay: 12
   rescue:
     - name: Mark old-releases fallback as not used
       ansible.builtin.set_fact:

@@ -34,15 +34,25 @@
       ansible.builtin.set_fact:
         ubuntu_old_releases_fallback_used: false
 
+    - name: Detect EOL-style Ubuntu apt mirror failure
+      ansible.builtin.set_fact:
+        ubuntu_apt_eol_mirror_error: >-
+          {{
+            (ansible_failed_result.msg | default(''))
+            is search(ubuntu_apt_eol_mirror_error_pattern, ignorecase=True)
+          }}
+      vars:
+        ubuntu_apt_eol_mirror_error_pattern: >-
+          no longer has a Release file|
+          does not have a Release file|
+          none found at .*InRelease
+
     - name: Switch Ubuntu mirrors to old-releases (EOL fallback)
       ansible.builtin.include_tasks: ubuntu_old_releases.yml
       when:
         - (ubuntu_switch_to_old_releases_on_failure | default(true)) | bool
         - ansible_distribution == 'Ubuntu'
-        - >-
-          (
-            (ansible_failed_result.msg | default('')) is search('no longer has a Release file|does not have a Release file|none found at .*InRelease', ignorecase=True)
-          )
+        - ubuntu_apt_eol_mirror_error | bool
 
     - name: Mark old-releases fallback as used
       ansible.builtin.set_fact:
@@ -50,10 +60,7 @@
       when:
         - (ubuntu_switch_to_old_releases_on_failure | default(true)) | bool
         - ansible_distribution == 'Ubuntu'
-        - >-
-          (
-            (ansible_failed_result.msg | default('')) is search('no longer has a Release file|does not have a Release file|none found at .*InRelease', ignorecase=True)
-          )
+        - ubuntu_apt_eol_mirror_error | bool
 
     - name: Retry apt cache update after switching mirrors
       ansible.builtin.apt:

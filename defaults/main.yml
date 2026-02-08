@@ -31,7 +31,7 @@ ubuntu_switch_to_old_releases_on_failure: true
 # Base mirror URL (no trailing spaces). Typical values:
 # - http://old-releases.ubuntu.com/ubuntu
 # - https://old-releases.ubuntu.com/ubuntu
-ubuntu_old_releases_mirror: http://old-releases.ubuntu.com/ubuntu
+ubuntu_old_releases_mirror: https://old-releases.ubuntu.com/ubuntu
 
 # Some -dev packages can be unsafe to remove (e.g., may attempt to remove
 # systemd inside minimal/container images). Keep a small denylist.

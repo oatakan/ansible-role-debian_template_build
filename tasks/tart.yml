@@ -115,12 +115,28 @@
     - tart_agent_github_install is not skipped
 
 - name: Ensure Tart guest agent package is installed (repo fallback)
+  ansible.builtin.apt:
+    name: "{{ tart_guest_agent_package }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 0
+    force_apt_get: true
+  register: tart_agent_package_installation
+  retries: 3
+  delay: 10
+  until: tart_agent_package_installation is succeeded
+  when:
+    - tart_agent_github_install is not defined or (tart_agent_github_install is failed) or (tart_agent_github_install is skipped)
+    - ansible_pkg_mgr == 'apt'
+
+- name: Ensure Tart guest agent package is installed (repo fallback, non-apt)
   ansible.builtin.package:
     name: "{{ tart_guest_agent_package }}"
     state: present
   register: tart_agent_package_installation
   when:
     - tart_agent_github_install is not defined or (tart_agent_github_install is failed) or (tart_agent_github_install is skipped)
+    - ansible_pkg_mgr != 'apt'
 
 - name: Ensure Tart guest agent service is enabled
   ansible.builtin.service:

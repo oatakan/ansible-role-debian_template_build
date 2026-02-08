@@ -18,6 +18,21 @@ configure_netplan: true
 enable_grow_part: true
 reset_machine_id: true
 
+# ---
+# Ubuntu EOL (old-releases) handling
+#
+# Ubuntu interim releases (e.g., 24.10 "oracular") reach EOL quickly. Once EOL,
+# the standard mirrors may drop Release/InRelease metadata and apt-secure will
+# refuse to update the cache.
+#
+# When enabled, the role will automatically switch Ubuntu apt sources from
+# archive/security mirrors to old-releases on apt update failure, then retry.
+ubuntu_switch_to_old_releases_on_failure: true
+# Base mirror URL (no trailing spaces). Typical values:
+# - http://old-releases.ubuntu.com/ubuntu
+# - https://old-releases.ubuntu.com/ubuntu
+ubuntu_old_releases_mirror: https://old-releases.ubuntu.com/ubuntu
+
 # Some -dev packages can be unsafe to remove (e.g., may attempt to remove
 # systemd inside minimal/container images). Keep a small denylist.
 skip_dev_packages:

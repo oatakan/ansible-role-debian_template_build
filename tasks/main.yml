@@ -23,10 +23,63 @@
       {{ (dockerenv_stat.stat.exists | default(false)) or (containerenv_stat.stat.exists | default(false)) }}
 
 - name: ensure apt cache is updated
-  ansible.builtin.apt:
-    update_cache: true
-    force_apt_get: true
-    cache_valid_time: 3600
+  block:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        force_apt_get: true
+        cache_valid_time: 3600
+  rescue:
+    - name: Mark old-releases fallback as not used
+      ansible.builtin.set_fact:
+        ubuntu_old_releases_fallback_used: false
+
+    - name: Detect EOL-style Ubuntu apt mirror failure
+      ansible.builtin.set_fact:
+        ubuntu_apt_eol_mirror_error: >-
+          {{
+            (ansible_failed_result.msg | default(''))
+            is search(ubuntu_apt_eol_mirror_error_pattern, ignorecase=True)
+          }}
+      vars:
+        ubuntu_apt_eol_mirror_error_pattern: >-
+          no longer has a Release file|
+          does not have a Release file|
+          none found at .*InRelease
+
+    - name: Switch Ubuntu mirrors to old-releases (EOL fallback)
+      ansible.builtin.include_tasks: ubuntu_old_releases.yml
+      when:
+        - (ubuntu_switch_to_old_releases_on_failure | default(true)) | bool
+        - ansible_distribution == 'Ubuntu'
+        - ubuntu_apt_eol_mirror_error | bool
+
+    - name: Mark old-releases fallback as used
+      ansible.builtin.set_fact:
+        ubuntu_old_releases_fallback_used: true
+      when:
+        - (ubuntu_switch_to_old_releases_on_failure | default(true)) | bool
+        - ansible_distribution == 'Ubuntu'
+        - ubuntu_apt_eol_mirror_error | bool
+
+    - name: Retry apt cache update after switching mirrors
+      ansible.builtin.apt:
+        update_cache: true
+        force_apt_get: true
+        cache_valid_time: 0
+        update_cache_retries: 10
+        update_cache_retry_max_delay: 12
+      when:
+        - ubuntu_old_releases_fallback_used | bool
+
+    - name: Fail when apt cache update cannot be recovered
+      ansible.builtin.fail:
+        msg: >-
+          apt cache update failed and could not be recovered.
+
+          Original error: {{ ansible_failed_result.msg | default(ansible_failed_result) }}
+      when:
+        - not (ubuntu_old_releases_fallback_used | bool)
 
 - name: ensure kernel headers are installed
   ansible.builtin.apt:

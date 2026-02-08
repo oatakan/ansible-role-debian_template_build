@@ -1,0 +1,41 @@
+---
+
+- name: Check for legacy sources.list
+  ansible.builtin.stat:
+    path: /etc/apt/sources.list
+  register: ubuntu_sources_list
+  changed_when: false
+
+- name: Check for deb822 ubuntu.sources
+  ansible.builtin.stat:
+    path: /etc/apt/sources.list.d/ubuntu.sources
+  register: ubuntu_deb822_sources
+  changed_when: false
+
+- name: Switch legacy sources.list archive mirror to old-releases
+  ansible.builtin.replace:
+    path: /etc/apt/sources.list
+    regexp: 'https?://[^\s]*archive\.ubuntu\.com/ubuntu/?'
+    replace: '{{ ubuntu_old_releases_mirror }}/'
+  when: ubuntu_sources_list.stat.exists
+
+- name: Switch legacy sources.list security mirror to old-releases
+  ansible.builtin.replace:
+    path: /etc/apt/sources.list
+    regexp: 'https?://security\.ubuntu\.com/ubuntu/?'
+    replace: '{{ ubuntu_old_releases_mirror }}/'
+  when: ubuntu_sources_list.stat.exists
+
+- name: Switch deb822 ubuntu.sources archive mirror to old-releases
+  ansible.builtin.replace:
+    path: /etc/apt/sources.list.d/ubuntu.sources
+    regexp: 'https?://[^\s]*archive\.ubuntu\.com/ubuntu/?'
+    replace: '{{ ubuntu_old_releases_mirror }}/'
+  when: ubuntu_deb822_sources.stat.exists
+
+- name: Switch deb822 ubuntu.sources security mirror to old-releases
+  ansible.builtin.replace:
+    path: /etc/apt/sources.list.d/ubuntu.sources
+    regexp: 'https?://security\.ubuntu\.com/ubuntu/?'
+    replace: '{{ ubuntu_old_releases_mirror }}/'
+  when: ubuntu_deb822_sources.stat.exists

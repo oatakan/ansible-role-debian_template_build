@@ -23,10 +23,33 @@
       {{ (dockerenv_stat.stat.exists | default(false)) or (containerenv_stat.stat.exists | default(false)) }}
 
 - name: ensure apt cache is updated
-  ansible.builtin.apt:
-    update_cache: true
-    force_apt_get: true
-    cache_valid_time: 3600
+  block:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        force_apt_get: true
+        cache_valid_time: 3600
+  rescue:
+    - name: Switch Ubuntu mirrors to old-releases (EOL fallback)
+      ansible.builtin.include_tasks: ubuntu_old_releases.yml
+      when:
+        - (ubuntu_switch_to_old_releases_on_failure | default(true)) | bool
+        - ansible_distribution == 'Ubuntu'
+        - >-
+          (
+            (ansible_failed_result.msg | default('')) is search('no longer has a Release file|does not have a Release file|InRelease', ignorecase=True)
+          )
+
+    - name: Retry apt cache update after switching mirrors
+      ansible.builtin.apt:
+        update_cache: true
+        force_apt_get: true
+        cache_valid_time: 0
+        update_cache_retries: 10
+        update_cache_retry_max_delay: 12
+      when:
+        - (ubuntu_switch_to_old_releases_on_failure | default(true)) | bool
+        - ansible_distribution == 'Ubuntu'
 
 - name: ensure kernel headers are installed
   ansible.builtin.apt:

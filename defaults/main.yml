@@ -18,6 +18,21 @@ configure_netplan: true
 enable_grow_part: true
 reset_machine_id: true
 
+# Remove installer/customization network fragments that can pin cloned Ubuntu
+# templates to the IP used during image creation. The role writes a neutral
+# DHCP netplan after this cleanup so platform customization can take over.
+ubuntu_cleanup_stale_network_config: true
+ubuntu_stale_netplan_files:
+  - /etc/netplan/00-installer-config.yaml.BeforeVMwareCustomization
+  - /etc/netplan/50-cloud-init.yaml
+  - /etc/netplan/50-cloud-init.yaml.BeforeVMwareCustomization
+  - /etc/netplan/99-netcfg-vmware.yaml
+  - /etc/netplan/99-netcfg-vmware.yaml.BeforeVMwareCustomization
+ubuntu_stale_cloud_init_network_files:
+  - /etc/cloud/cloud.cfg.d/50-curtin-networking.cfg
+  - /etc/cloud/cloud.cfg.d/90-installer-network.cfg
+  - /etc/cloud/cloud.cfg.d/subiquity-disable-cloudinit-networking.cfg
+
 # ---
 # Ubuntu EOL (old-releases) handling
 #

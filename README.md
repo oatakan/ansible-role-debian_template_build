@@ -57,6 +57,7 @@ The role is primarily intended for VM template preparation. Some steps do not ma
 | install_kernel_headers | true | Installs kernel headers for the running kernel (commonly disabled in containers). |
 | zero_free_space | true | Fills free space with zeros to improve image compression (disabled in most tests). |
 | configure_netplan | true | Applies netplan settings on Ubuntu only. |
+| ubuntu_cleanup_stale_network_config | true | Removes Ubuntu installer/cloud-init/VMware network fragments that can pin cloned templates to the build-time IP before writing the neutral DHCP netplan. |
 | enable_grow_part | true | Configures grow-part-on-boot behavior for cloud images. |
 | reset_machine_id | true | Resets machine-id related artifacts so clones get fresh identity. |
 
@@ -159,4 +160,3 @@ MIT
 ## Author Information
 
 Orcun Atakan
-

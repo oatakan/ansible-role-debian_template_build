@@ -34,6 +34,29 @@
         fail_msg: "/etc/netplan/00-installer-config.yaml not found on Ubuntu"
       when: ansible_distribution == 'Ubuntu'
 
+    - name: Check stale Ubuntu network config files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /etc/netplan/50-cloud-init.yaml
+        - /etc/netplan/99-netcfg-vmware.yaml
+        - /etc/cloud/cloud.cfg.d/50-curtin-networking.cfg
+        - /etc/cloud/cloud.cfg.d/90-installer-network.cfg
+        - /etc/cloud/cloud.cfg.d/subiquity-disable-cloudinit-networking.cfg
+      register: stale_network_config
+      when: ansible_distribution == 'Ubuntu'
+
+    - name: Assert stale Ubuntu network config files are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            stale_network_config.results
+            | selectattr('stat.exists', 'equalto', true)
+            | list
+            | length == 0
+        fail_msg: "Stale Ubuntu installer/cloud-init network config remains."
+      when: ansible_distribution == 'Ubuntu'
+
     - name: Success message
       ansible.builtin.debug:
         msg: "✅ Molecule verification checks passed"

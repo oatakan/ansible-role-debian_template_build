@@ -204,6 +204,26 @@
     - (configure_netplan | default(true)) | bool
     - ansible_distribution == 'Ubuntu'
 
+- name: Remove stale Ubuntu netplan files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ ubuntu_stale_netplan_files }}"
+  when:
+    - (configure_netplan | default(true)) | bool
+    - (ubuntu_cleanup_stale_network_config | default(true)) | bool
+    - ansible_distribution == 'Ubuntu'
+
+- name: Remove stale Ubuntu cloud-init network config
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ ubuntu_stale_cloud_init_network_files }}"
+  when:
+    - (configure_netplan | default(true)) | bool
+    - (ubuntu_cleanup_stale_network_config | default(true)) | bool
+    - ansible_distribution == 'Ubuntu'
+
 - name: Ensure DHCP is used
   ansible.builtin.template:
     src: 00-installer-config.yaml.j2

@@ -231,6 +231,7 @@
     mode: '0644'
   when:
     - (configure_netplan | default(true)) | bool
+    - not ((target_ovirt | bool) or (enable_cloud_init | bool))
     - ansible_distribution == 'Ubuntu'
 
 - name: Cloud init

@@ -279,6 +279,7 @@
   failed_when:
     - create_free_space.rc > 0
     - ('No space left on device' not in create_free_space.stderr)
+    - ('Disk quota exceeded' not in create_free_space.stderr)
   when:
     - (zero_free_space | default(true)) | bool
     - (ansible_virtualization_type | default('')) not in ['docker', 'container', 'podman']
